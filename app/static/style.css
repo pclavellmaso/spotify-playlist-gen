@@ -1,0 +1,63 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0f1113;
+  --card: #17191c;
+  --line: #2a2e33;
+  --fg: #e9edf1;
+  --muted: #9aa4ae;
+  --accent: #1db954;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+h2 { font-size: 15px; margin: 0 0 14px; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.status { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+.status a { color: var(--accent); }
+.hidden { display: none; }
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+select, textarea, input {
+  width: 100%;
+  background: #101214;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  padding: 9px 11px;
+  font: inherit;
+}
+textarea { resize: vertical; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin: 12px 0; }
+.row > * { flex: 1; min-width: 130px; }
+button {
+  background: var(--accent);
+  color: #06210f;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.secondary { background: #23272c; color: var(--fg); }
+button:disabled { opacity: 0.5; cursor: default; }
+.hint { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 14px; }
+#bar { height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
+ol { padding-left: 22px; margin: 0 0 6px; }
+li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+li:last-child { border-bottom: 0; }
+.meta { color: var(--muted); font-size: 12.5px; }
+.score { float: right; color: var(--accent); font-variant-numeric: tabular-nums; }

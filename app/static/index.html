@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playlists por momento</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Playlists por momento</h1>
+    <p class="sub">Describe un momento y saca las canciones de tu biblioteca que encajan.</p>
+    <div id="status" class="status">Comprobando conexion…</div>
+  </header>
+
+  <section id="setup" class="card hidden">
+    <h2>1 · Tu biblioteca</h2>
+    <label for="source">Origen</label>
+    <select id="source"><option value="liked">Canciones que te gustan</option></select>
+    <div class="row">
+      <button id="sync" class="secondary">Sincronizar</button>
+      <button id="tag" class="secondary">Analizar pendientes</button>
+    </div>
+    <div id="progress" class="progress hidden"><div id="bar"></div></div>
+    <p id="libstats" class="hint"></p>
+  </section>
+
+  <section id="generator" class="card hidden">
+    <h2>2 · El momento</h2>
+    <textarea id="prompt" rows="3"
+      placeholder="momento calma en la piscina haciendo cervecita"></textarea>
+    <div class="row">
+      <label>Canciones <input id="limit" type="number" value="30" min="1" max="100"></label>
+      <label>Nota minima <input id="minscore" type="number" value="55" min="0" max="100"></label>
+      <label>Max por artista <input id="maxartist" type="number" value="2" min="1" max="10"></label>
+    </div>
+    <button id="generate">Generar</button>
+  </section>
+
+  <section id="results" class="card hidden">
+    <h2 id="reslabel"></h2>
+    <p id="notes" class="hint"></p>
+    <ol id="tracks"></ol>
+    <div class="row">
+      <input id="plname" placeholder="Nombre de la playlist">
+      <button id="save">Guardar en Spotify</button>
+    </div>
+    <p id="saved" class="hint"></p>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
