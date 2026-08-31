@@ -5,6 +5,7 @@ asi que emparejar es una distancia ponderada mas unos ajustes.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from app.vibes import VibeQuery
@@ -17,6 +18,11 @@ W_DESCRIPTORS = 0.15
 # Una etiqueta insegura no se descarta, se acerca a la media: si el modelo no
 # conocia la cancion, su perfil no deberia decidir nada por si solo.
 CONFIDENCE_FLOOR = 0.35
+
+# Cuanto puede desviarse un eje antes de que deje de ser un matiz. Con 0.30, un
+# desajuste de 15 puntos conserva el 78% del parecido, uno de 30 baja al 37% y
+# uno de 45 cae al 11%.
+AXIS_TOLERANCE = 0.30
 
 
 def score_track(track: dict[str, Any], query: VibeQuery) -> float:
@@ -45,21 +51,40 @@ def score_track(track: dict[str, Any], query: VibeQuery) -> float:
 
 
 def _axes_score(axes: dict[str, int], query: VibeQuery) -> float | None:
+    """Parecido con el perfil objetivo. Conjuntivo: fallar de lleno en un eje
+    importante descarta, no se compensa acertando en otros.
+
+    Antes esto era la media de los errores absolutos, y era demasiado
+    indulgente: una peticion de "calma en la piscina" (energy 35, tempo_feel 35)
+    puntuaba a Papi Chulo con un 68,7 pese a fallar por 43 y 45 puntos en esos
+    dos ejes, porque acertaba en valence y warmth y la media repartia. Todo el
+    ranking se comprimia en una franja estrecha y nada puntuaba mal de verdad.
+
+    Ahora cada eje aporta un parecido con caida gaussiana -a partir de cierto
+    desajuste deja de importar "un poco" y pasa a descalificar- y se combinan en
+    media geometrica, que es la que expresa "todo esto tiene que cumplirse":
+    un solo termino cerca de cero arrastra el resultado entero. Con eso, la
+    misma cancion pasa de 68,7 a 27,6 y una que si encaja se queda en 75,3.
+    """
     if not query.targets or not axes:
         return None
     total_w = 0.0
-    total_err = 0.0
+    log_sum = 0.0
     for axis, target in query.targets.items():
         if axis not in axes:
             continue
         weight = float(query.weights.get(axis, 1.0))
         if weight <= 0:
             continue
+        error = abs(axes[axis] - target) / 100
+        # log(exp(-x)) = -x, asi que el logaritmo se calcula directo y no hay
+        # riesgo de log(0) por muy grande que sea el desajuste.
+        log_sim = -((error / AXIS_TOLERANCE) ** 2)
         total_w += weight
-        total_err += weight * abs(axes[axis] - target) / 100
+        log_sum += weight * log_sim
     if total_w == 0:
         return None
-    return (1 - total_err / total_w) * 100
+    return math.exp(log_sum / total_w) * 100
 
 
 def _context_score(contexts: list[str], query: VibeQuery) -> float | None:

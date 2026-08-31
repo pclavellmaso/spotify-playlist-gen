@@ -139,3 +139,60 @@ def test_no_acertar_nada_sigue_puntuando_bajo():
 def test_sin_contextos_declarados_no_hay_evidencia():
     # Una lista vacia es una respuesta valida del etiquetador, no un fallo.
     assert score_track(track("v", contexts=[]), CTX_QUERY) == 50.0
+
+
+# -- los ejes son conjuntivos -----------------------------------------------
+# Antes esto era la media de errores absolutos y compensaba: Papi Chulo sacaba
+# 68,7 en una peticion de "calma" pese a fallar por 43 y 45 puntos en energy y
+# tempo_feel, porque acertaba en valence y warmth.
+CALMA = VibeQuery(
+    label="x",
+    targets={"energy": 35, "valence": 75, "tempo_feel": 35, "warmth": 80},
+    weights={"energy": 1.0, "valence": 1.0, "tempo_feel": 0.8, "warmth": 0.7},
+)
+
+
+def _axes(**kwargs):
+    base = {"energy": 50, "valence": 50, "danceability": 50, "acousticness": 50,
+            "tempo_feel": 50, "vocal_focus": 50, "warmth": 50}
+    return {**base, **kwargs}
+
+
+def _score_axes(**kwargs):
+    t = track("t", confidence=100)
+    t["axes"] = _axes(**kwargs)
+    return score_track(t, CALMA)
+
+
+def test_un_encaje_perfecto_puntua_lo_maximo():
+    assert _score_axes(energy=35, valence=75, tempo_feel=35, warmth=80) == 100.0
+
+
+def test_fallar_de_lleno_en_un_eje_importante_no_se_compensa():
+    # Acierta valence y warmth, falla energy y tempo_feel: no vale.
+    fiesta = _score_axes(energy=78, valence=75, tempo_feel=80, warmth=80)
+    assert fiesta < 40, fiesta
+
+
+def test_acertar_de_cerca_en_todo_puntua_alto():
+    cerca = _score_axes(energy=45, valence=72, tempo_feel=45, warmth=75)
+    assert cerca > 70, cerca
+
+
+def test_un_solo_eje_catastrofico_arrastra_el_conjunto():
+    # Media geometrica: un termino cerca de cero manda sobre los demas.
+    todo_bien = _score_axes(energy=35, valence=75, tempo_feel=35, warmth=80)
+    una_mal = _score_axes(energy=100, valence=75, tempo_feel=35, warmth=80)
+    assert todo_bien == 100.0
+    assert una_mal < 30, una_mal
+
+
+def test_el_peso_gradua_el_castigo():
+    # Mismo desajuste de 45 puntos, en un eje de peso 1.0 y en uno de peso 0.7.
+    pesado = _score_axes(energy=80, valence=75, tempo_feel=35, warmth=80)
+    ligero = _score_axes(energy=35, valence=75, tempo_feel=35, warmth=35)
+    assert pesado < ligero
+
+
+def test_un_desajuste_pequenyo_apenas_penaliza():
+    assert _score_axes(energy=40, valence=75, tempo_feel=35, warmth=80) > 90
