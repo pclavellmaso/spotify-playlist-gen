@@ -81,7 +81,13 @@ Para cada cancion de la lista devuelve un perfil con estos ejes, todos enteros d
 
 Ademas:
 - contexts: en que momentos encaja de forma natural. Solo de esta lista: {", ".join(CONTEXTS)}.
-  Lista solo los que encajen de verdad; una lista vacia es una respuesta valida.
+  **Maximo 2, y solo si son obvios.** La mayoria de canciones encajan en 0, 1 o 2
+  momentos; si te salen 4 no estas eligiendo, estas repartiendo. Una lista vacia es
+  una respuesta perfectamente valida y frecuente.
+  El criterio es: ¿pondrias *esta* cancion si alguien te pide musica para ese momento?
+  No vale que el genero encaje de lejos. Un tema de club no es "cena_amigos" porque se
+  pueda oir de fondo, ni "piscina_verano" porque sea alegre: `fiesta` ya lo cubre.
+  Estas etiquetas solo sirven si separan unas canciones de otras.
 - descriptors: hasta 6 adjetivos cortos en castellano, en minusculas, sin tildes
   (ej: "hipnotica", "veraniega", "nostalgica", "densa").
 - confidence: cuanto se sostiene el perfil que acabas de dar. Si no reconoces la

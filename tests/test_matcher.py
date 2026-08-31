@@ -100,3 +100,42 @@ def test_flow_order_ramps_energy_up():
 def test_min_score_filters_the_pool():
     pool = [track("bad", energy=100, valence=0, warmth=0, descriptors=["densa"])]
     assert select(pool, POOL_QUERY, min_score=55) == []
+
+
+# -- especificidad del contexto ---------------------------------------------
+# Un acierto plano premiaba a las canciones que se apuntan a todo: sobre una
+# biblioteca real el etiquetador repartia 3,4 contextos por tema y `fiesta`
+# salia en el 57%, con lo que casi cualquier cancion acertaba.
+CTX_QUERY = VibeQuery(label="x", targets={}, contexts=["piscina_verano"])
+
+
+def test_una_cancion_especifica_puntua_mas_que_una_que_se_apunta_a_todo():
+    especifica = track("e", contexts=["piscina_verano"])
+    promiscua = track("p", contexts=["piscina_verano", "fiesta", "conducir", "tareas_casa"])
+    assert score_track(especifica, CTX_QUERY) > score_track(promiscua, CTX_QUERY)
+
+
+def test_el_acierto_unico_sigue_valiendo_lo_maximo():
+    assert score_track(track("e", contexts=["piscina_verano"]), CTX_QUERY) == 100.0
+
+
+def test_el_acierto_se_diluye_en_proporcion():
+    dos = track("d", contexts=["piscina_verano", "fiesta"])
+    cuatro = track("c", contexts=["piscina_verano", "fiesta", "conducir", "tareas_casa"])
+    assert score_track(dos, CTX_QUERY) == 75.0
+    assert score_track(cuatro, CTX_QUERY) == 62.5
+
+
+def test_acertar_varios_contextos_pedidos_no_penaliza():
+    query = VibeQuery(label="x", targets={}, contexts=["piscina_verano", "terraza_atardecer"])
+    ambos = track("a", contexts=["piscina_verano", "terraza_atardecer"])
+    assert score_track(ambos, query) == 100.0
+
+
+def test_no_acertar_nada_sigue_puntuando_bajo():
+    assert score_track(track("m", contexts=["entrenamiento"]), CTX_QUERY) == 25.0
+
+
+def test_sin_contextos_declarados_no_hay_evidencia():
+    # Una lista vacia es una respuesta valida del etiquetador, no un fallo.
+    assert score_track(track("v", contexts=[]), CTX_QUERY) == 50.0

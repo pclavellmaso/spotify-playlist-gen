@@ -63,13 +63,25 @@ def _axes_score(axes: dict[str, int], query: VibeQuery) -> float | None:
 
 
 def _context_score(contexts: list[str], query: VibeQuery) -> float | None:
+    """Acierto de contexto, ponderado por lo especifica que sea la cancion.
+
+    Un acierto plano de 100 premiaba a las canciones que se apuntan a todo: en
+    una biblioteca real el etiquetador reparte 3,4 contextos por tema y `fiesta`
+    aparece en el 57%, asi que casi cualquier cancion acertaba y el bloque
+    dejaba de discriminar. Decir "encajo en 5 momentos" es afirmar menos sobre
+    cada uno que decir "encajo en este": el acierto vale en proporcion.
+
+    1 de 1 -> 100 · 1 de 2 -> 75 · 1 de 4 -> 62.5 · sin acierto -> 25
+    """
     if not query.contexts:
         return None
     if not contexts:
         # Sin contextos declarados no hay evidencia ni a favor ni en contra.
         return 50.0
     hits = len(set(contexts) & set(query.contexts))
-    return 100.0 if hits else 25.0
+    if not hits:
+        return 25.0
+    return 50.0 + 50.0 * (hits / len(contexts))
 
 
 def _descriptor_score(
