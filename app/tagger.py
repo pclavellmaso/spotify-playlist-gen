@@ -13,7 +13,7 @@ from typing import Any, Iterable, Iterator
 
 import anthropic
 
-from app.vibes import AXES, CONTEXTS, TrackVibe, TrackVibeBatch, VibeQuery
+from app.vibes import AXES, CONTEXTS, QueryDraft, TrackVibe, TrackVibeBatch, VibeQuery
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,10 @@ PERMANENT_ERRORS = (
 # Un fallo transitorio suelto se salta; una racha significa que algo va mal de
 # verdad y no tiene sentido seguir recorriendo la biblioteca.
 MAX_CONSECUTIVE_FAILURES = 3
+
+# Por debajo de esto la interpretacion no filtra: los ejes son el 65% de la
+# nota y sin ellos manda el vocabulario de contextos, que es mucho mas grueso.
+MIN_TARGET_AXES = 3
 
 
 class TaggingAborted(RuntimeError):
@@ -93,11 +97,15 @@ Ejes disponibles (0-100): {", ".join(AXES)}.
 Contextos disponibles: {", ".join(CONTEXTS)}.
 
 Reglas:
-- En `targets` incluye SOLO los ejes que la peticion determina de verdad. Si a alguien
-  le da igual si la musica es acustica o electronica, no pongas acousticness.
-  Menos ejes bien elegidos filtran mejor que siete a ojo.
-- En `weights` da 1.0 a lo que la peticion pide explicitamente y 0.3-0.6 a lo que solo
-  esta implicito.
+- `targets` es lo que de verdad filtra. Tiene un campo por eje, cada uno con `value`
+  (0-100) y `weight` (0-1). Pon `value` en **al menos tres** ejes: casi cualquier
+  momento describible determina energy y tempo_feel, y casi siempre valence.
+  Deja `value` a null solo en los ejes que de verdad den igual: si a alguien no le
+  importa que la musica sea acustica o electronica, acousticness va a null.
+  No dejes los siete a null: sin ejes la seleccion la acaban decidiendo las etiquetas
+  de contexto, que son mucho mas gruesas.
+- `weight`: 1.0 en lo que la peticion pide explicitamente, 0.3-0.6 en lo que solo esta
+  implicito.
 - `contexts` solo si la peticion apunta claramente a uno.
 - `descriptors`: adjetivos en minusculas y sin tildes que deberia evocar la seleccion.
 - `avoid_descriptors`: lo que arruinaria el momento descrito.
@@ -105,9 +113,11 @@ Reglas:
 - `notes`: una frase explicando como has interpretado la peticion.
 
 Ejemplo: "momento calma en la piscina con una cervecita" ->
-targets con energy bajo-medio (~35), valence alto (~75), warmth alto (~80),
-tempo_feel bajo (~35); contexts ["piscina_verano", "terraza_atardecer"];
-descriptors ["veraniega", "relajada", "luminosa"]; avoid ["agresiva", "oscura"]."""
+energy {{value 35, weight 1.0}}, valence {{value 75, weight 1.0}}, warmth {{value 80,
+weight 0.7}}, tempo_feel {{value 35, weight 0.8}}, danceability {{value 55, weight 0.4}},
+y acousticness/vocal_focus con value null porque la peticion no los determina;
+contexts ["piscina_verano", "terraza_atardecer"]; descriptors ["veraniega",
+"relajada", "luminosa"]; avoid ["agresiva", "oscura"]."""
 
 
 class Tagger:
@@ -188,6 +198,42 @@ class Tagger:
                 yield []
 
     def parse_query(self, prompt: str) -> VibeQuery:
+        query = self._parse_query_once(prompt)
+        if len(query.targets) < MIN_TARGET_AXES:
+            # Sin ejes desaparece el 65% de la nota y la seleccion la deciden los
+            # contextos, que el etiquetador reparte con mucha alegria: una lista de
+            # "calma en la piscina" acaba llena de temas de fiesta que comparten la
+            # etiqueta piscina_verano. Merece la pena una segunda llamada corta.
+            log.info("Interpretacion con %d ejes; reintentando", len(query.targets))
+            query = self._parse_query_once(prompt, insist=True)
+
+        if not query.targets and not query.contexts and not query.descriptors:
+            raise ValueError(
+                "La peticion es demasiado vaga: describe un momento, un ambiente o una actividad"
+            )
+        if len(query.targets) < MIN_TARGET_AXES:
+            # No se bloquea: con contextos y descriptores todavia se puede filtrar,
+            # pero quien mira la pantalla debe saber que la nota es mas gruesa.
+            query.notes += (
+                " (Interpretacion poco concreta: casi sin ejes numericos, "
+                "la seleccion se apoya en las etiquetas. Prueba a describir "
+                "el ritmo y la intensidad que buscas.)"
+            )
+        return query
+
+    def _parse_query_once(self, prompt: str, insist: bool = False) -> VibeQuery:
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+        if insist:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Esa interpretacion se quedo sin ejes numericos en `targets`. "
+                        f"Vuelve a interpretarla poniendo al menos {MIN_TARGET_AXES} "
+                        "ejes con su valor 0-100, empezando por energy, tempo_feel y valence."
+                    ),
+                }
+            )
         response = self.client.messages.parse(
             model=self.model,
             max_tokens=4000,
@@ -198,20 +244,15 @@ class Tagger:
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
-            messages=[{"role": "user", "content": prompt}],
-            output_format=VibeQuery,
+            messages=messages,
+            output_format=QueryDraft,
         )
-        query = response.parsed_output
-        if query is None:
+        draft = response.parsed_output
+        if draft is None:
             raise ValueError("No se pudo interpretar la peticion")
-        # Descartar ejes inventados antes de que lleguen al scorer.
-        query.targets = {k: v for k, v in query.targets.items() if k in AXES}
-        query.weights = {k: v for k, v in query.weights.items() if k in query.targets}
-        if not query.targets and not query.contexts and not query.descriptors:
-            raise ValueError(
-                "La peticion es demasiado vaga: describe un momento, un ambiente o una actividad"
-            )
-        return query
+        # QueryDraft tiene un campo por eje, asi que no hay ejes inventados que
+        # descartar: el esquema ya no los admite.
+        return draft.to_query()
 
 
 def _chunks(items: list[Any], size: int) -> Iterator[list[Any]]:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ from app.config import SCOPES, settings
 from app.db import Library
 from app.matcher import select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
-from app.tagger import Tagger, TaggingAborted
+from app.tagger import BATCH_SIZE, Tagger, TaggingAborted
 from app.vibes import TAGGER_VERSION
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -36,7 +37,19 @@ _pending_auth: dict[str, str] = {}
 
 # Estado del etiquetado en curso; el front lo consulta cada pocos segundos.
 _job_lock = threading.Lock()
-_job: dict[str, Any] = {"running": False, "source": None, "done": 0, "total": 0, "error": None}
+_job: dict[str, Any] = {
+    "running": False,
+    "source": None,
+    "done": 0,
+    "total": 0,
+    # El modelo responde un lote entero de golpe, asi que no hay progreso
+    # observable dentro de un lote: lo unico honesto que se puede mostrar es
+    # por donde va el recorrido.
+    "batch": 0,
+    "batches": 0,
+    "error": None,
+    "finished": False,
+}
 
 
 def _tagger() -> Tagger:
@@ -152,7 +165,16 @@ def tag(req: TagRequest) -> dict[str, Any]:
             pending = pending[: req.limit]
         if not pending:
             return {"started": False, "pending": 0}
-        _job.update(running=True, source=req.source, done=0, total=len(pending), error=None)
+        _job.update(
+            running=True,
+            source=req.source,
+            done=0,
+            total=len(pending),
+            batch=0,
+            batches=math.ceil(len(pending) / BATCH_SIZE),
+            error=None,
+            finished=False,
+        )
 
     tagger = _tagger()
 
@@ -165,6 +187,9 @@ def tag(req: TagRequest) -> dict[str, Any]:
                     # Se avanza por lote completo aunque alguna cancion se caiga:
                     # asi la barra refleja el trabajo hecho, no el conseguido.
                     _job["done"] = min(_job["done"] + len(vibes), _job["total"])
+                    _job["batch"] += 1
+            with _job_lock:
+                _job["finished"] = True
         except TaggingAborted as exc:
             # El mensaje ya viene redactado para la pantalla; el traceback no
             # aporta nada porque la causa es la cuenta o el .env, no el codigo.

@@ -55,8 +55,19 @@ button.secondary { background: #23272c; color: var(--fg); }
 button:disabled { opacity: 0.5; cursor: default; }
 .hint { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
 .error { font-size: 13px; color: #ff6b6b; margin: 10px 0 0; }
+.ok { font-size: 13px; color: var(--accent); margin: 10px 0 0; }
 .progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 14px; }
 #bar { height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
+/* Dentro de un lote no hay progreso que mostrar; el rayado en movimiento
+   distingue "esperando al modelo" de "colgado". */
+#bar.working {
+  background-image: linear-gradient(115deg, transparent 25%, rgba(255,255,255,0.35) 25%,
+    rgba(255,255,255,0.35) 50%, transparent 50%, transparent 75%,
+    rgba(255,255,255,0.35) 75%);
+  background-size: 18px 18px;
+  animation: slide 0.9s linear infinite;
+}
+@keyframes slide { from { background-position: 0 0; } to { background-position: 18px 0; } }
 ol { padding-left: 22px; margin: 0 0 6px; }
 li { padding: 7px 0; border-bottom: 1px solid var(--line); }
 li:last-child { border-bottom: 0; }

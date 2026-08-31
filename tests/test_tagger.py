@@ -10,7 +10,7 @@ import httpx2
 import pytest
 
 from app.tagger import MAX_CONSECUTIVE_FAILURES, Tagger, TaggingAborted, explain_error
-from app.vibes import TrackVibe, TrackVibeBatch
+from app.vibes import AxisTarget, QueryDraft, QueryTargets, TrackVibe, TrackVibeBatch
 
 TRACKS = [
     {"id": f"t{i}", "name": f"Cancion {i}", "artists": ["Alguien"], "album": "Disco",
@@ -158,3 +158,52 @@ def test_explain_error_prioriza_el_saldo_sobre_el_tipo():
 
 def test_explain_error_tiene_salida_para_lo_desconocido():
     assert "raro" in explain_error(_bad_request("algo raro"), "claude-opus-5")
+
+
+# -- parse_query ------------------------------------------------------------
+def _draft(notes="nota", **axes) -> QueryDraft:
+    """Un borrador con `value` puesto solo en los ejes que se le pasen."""
+    targets = QueryTargets(**{
+        axis: AxisTarget(value=value, weight=1.0) for axis, value in axes.items()
+    })
+    return QueryDraft(label="X", targets=targets, notes=notes)
+
+
+def test_una_interpretacion_sin_ejes_se_reintenta():
+    # El caso real: "calma en la piscina" devolvia los siete ejes a null, el
+    # bloque de ejes (65% de la nota) desaparecia y mandaban los contextos.
+    bueno = _draft(energy=35, valence=75, warmth=80)
+    tagger = _tagger([FakeResponse(_draft()), FakeResponse(bueno)])
+    query = tagger.parse_query("calma en la piscina con cervecita")
+    assert query.targets == {"energy": 35, "valence": 75, "warmth": 80}
+    assert tagger.client.messages.calls == 2
+
+
+def test_una_interpretacion_con_ejes_no_gasta_una_segunda_llamada():
+    tagger = _tagger([FakeResponse(_draft(energy=80, tempo_feel=85, valence=70))])
+    tagger.parse_query("fiesta")
+    assert tagger.client.messages.calls == 1
+
+
+def test_los_ejes_a_null_no_llegan_al_scorer():
+    # Un eje sin value significa "me da igual": no debe puntuar ni pesar.
+    query = _tagger([FakeResponse(_draft(energy=40, valence=60, warmth=70))]).parse_query("x")
+    assert set(query.targets) == {"energy", "valence", "warmth"}
+    assert set(query.weights) == set(query.targets)
+
+
+def test_si_el_reintento_tampoco_trae_ejes_avisa_en_las_notas():
+    pobre = QueryDraft(label="X", descriptors=["veraniega"], notes="nota")
+    tagger = _tagger([FakeResponse(pobre), FakeResponse(pobre)])
+    assert "poco concreta" in tagger.parse_query("algo bonito").notes
+
+
+def test_una_peticion_sin_nada_aprovechable_se_rechaza():
+    tagger = _tagger([FakeResponse(_draft()), FakeResponse(_draft())])
+    with pytest.raises(ValueError, match="demasiado vaga"):
+        tagger.parse_query("mmm")
+
+
+def test_una_respuesta_ilegible_se_rechaza():
+    with pytest.raises(ValueError, match="No se pudo interpretar"):
+        _tagger([FakeResponse(None)]).parse_query("lo que sea")

@@ -55,11 +55,24 @@ async function refreshStats() {
     `${s.total} canciones sincronizadas · ${s.tagged} analizadas · ${s.pending} pendientes`;
 
   const job = s.job || {};
-  const active = job.running && job.source === $("source").value;
+  const mine = job.source === $("source").value;
+  const active = job.running && mine;
   $("progress").classList.toggle("hidden", !active);
   if (active && job.total) {
+    // El lote en curso aun no cuenta, asi que la barra se queda quieta
+    // mientras se espera al modelo: el rayado indica que sigue vivo.
     $("bar").style.width = `${Math.round((job.done / job.total) * 100)}%`;
+    $("bar").classList.add("working");
+    $("progtext").textContent =
+      `Lote ${job.batch + 1} de ${job.batches} · ${job.done} de ${job.total} canciones analizadas`;
     setTimeout(refreshStats, 2500);
+  }
+
+  const donemsg = !job.running && mine && job.finished && job.done;
+  $("tagdone").classList.toggle("hidden", !donemsg);
+  if (donemsg) {
+    $("tagdone").textContent =
+      `Listo: ${job.done} canciones analizadas. Ya puedes describir un momento aqui debajo.`;
   }
   $("taberror").textContent = job.error || "";
   $("taberror").classList.toggle("hidden", !job.error);
@@ -86,6 +99,7 @@ $("sync").addEventListener("click", async (e) => {
 $("tag").addEventListener("click", async (e) => {
   setBusy(e.target, true, "Lanzando…");
   $("taberror").classList.add("hidden");
+  $("tagdone").classList.add("hidden");
   try {
     const r = await api("/api/tag", {
       method: "POST",
