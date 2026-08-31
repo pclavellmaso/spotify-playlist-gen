@@ -36,6 +36,12 @@ CREATE TABLE IF NOT EXISTS vibes (
     tagged_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS lastfm_tags (
+    track_id   TEXT PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+    tags       TEXT NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_tracks_source ON tracks(source);
 """
 
@@ -182,6 +188,44 @@ class Library:
             track["confidence"] = row["confidence"]
             out.append(track)
         return out
+
+    # -- tags de last.fm ---------------------------------------------------
+    def lastfm_tags(self, track_ids: list[str]) -> dict[str, list[str]]:
+        """Tags cacheados. Una entrada con lista vacia significa 'ya preguntado'."""
+        if not track_ids:
+            return {}
+        out: dict[str, list[str]] = {}
+        with self.connect() as conn:
+            # SQLite tiene un tope de variables por consulta, de ahi los trozos.
+            for i in range(0, len(track_ids), 500):
+                chunk = track_ids[i : i + 500]
+                placeholders = ",".join("?" * len(chunk))
+                rows = conn.execute(
+                    f"SELECT track_id, tags FROM lastfm_tags WHERE track_id IN ({placeholders})",
+                    chunk,
+                ).fetchall()
+                out.update({r["track_id"]: json.loads(r["tags"]) for r in rows})
+        return out
+
+    def save_lastfm_tags(self, tags_by_track: dict[str, list[str]]) -> int:
+        if not tags_by_track:
+            return 0
+        rows = [
+            (track_id, json.dumps(tags, ensure_ascii=False))
+            for track_id, tags in tags_by_track.items()
+        ]
+        with self.connect() as conn:
+            conn.executemany(
+                """
+                INSERT INTO lastfm_tags (track_id, tags)
+                VALUES (?, ?)
+                ON CONFLICT(track_id) DO UPDATE SET
+                    tags=excluded.tags,
+                    fetched_at=datetime('now')
+                """,
+                rows,
+            )
+        return len(rows)
 
     def stats(self, source: str, tagger_version: int) -> dict[str, int]:
         with self.connect() as conn:

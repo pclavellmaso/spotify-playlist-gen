@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.config import SCOPES, settings
 from app.db import Library
+from app.lastfm import LastfmClient
 from app.matcher import select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
 from app.tagger import BATCH_SIZE, Tagger, TaggingAborted
@@ -31,6 +32,8 @@ spotify = SpotifyClient(
     settings.spotify_redirect_uri,
     TokenStore(settings.token_path),
 )
+
+lastfm = LastfmClient(settings.lastfm_api_key)
 
 # El flujo OAuth es de un solo usuario en local, con lo que basta memoria.
 _pending_auth: dict[str, str] = {}
@@ -89,6 +92,7 @@ def status() -> dict[str, Any]:
         "configured": True,
         "user": me.get("display_name") or me.get("id"),
         "model": settings.anthropic_model,
+        "lastfm": lastfm.enabled,
         "sources": library.sources(),
     }
 
@@ -178,9 +182,27 @@ def tag(req: TagRequest) -> dict[str, Any]:
 
     tagger = _tagger()
 
+    def with_lastfm_tags(chunk: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Adjunta los tags de comunidad, del cache o preguntando lo que falte."""
+        if not lastfm.enabled:
+            return chunk
+        cached = library.lastfm_tags([t["id"] for t in chunk])
+        fetched: dict[str, list[str]] = {}
+        for track in chunk:
+            if track["id"] in cached:
+                continue
+            artist = (track["artists"] or [""])[0]
+            # Se cachea tambien la lista vacia: "Last.fm no lo conoce" es una
+            # respuesta, y no hay que volver a preguntarla en cada pasada.
+            fetched[track["id"]] = lastfm.top_tags(artist, track["name"])
+        if fetched:
+            library.save_lastfm_tags(fetched)
+        tags = {**cached, **fetched}
+        return [{**t, "lastfm_tags": tags.get(t["id"], [])} for t in chunk]
+
     def worker() -> None:
         try:
-            for vibes in tagger.tag_all(pending):
+            for vibes in tagger.tag_all(pending, prepare=with_lastfm_tags):
                 if vibes:
                     library.save_vibes(vibes, TAGGER_VERSION)
                 with _job_lock:

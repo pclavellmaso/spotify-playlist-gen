@@ -26,7 +26,17 @@ async function refreshStatus() {
     $("status").innerHTML = '<a href="/api/auth/login">Conectar con Spotify →</a>';
     return;
   }
-  $("status").textContent = `Conectado como ${s.user} · modelo ${s.model}`;
+  // El nombre viene de Spotify, asi que no se mete por innerHTML.
+  const status = $("status");
+  status.textContent = `Conectado como ${s.user} · modelo ${s.model} · `;
+  const fm = document.createElement("span");
+  if (s.lastfm) {
+    fm.textContent = "Last.fm activo";
+  } else {
+    fm.innerHTML =
+      "sin Last.fm — a\u00f1ade <code>LASTFM_API_KEY</code> al .env para afinar el cat\u00e1logo que el modelo no conoce";
+  }
+  status.append(fm);
   $("setup").classList.remove("hidden");
   $("generator").classList.remove("hidden");
   await loadPlaylists();

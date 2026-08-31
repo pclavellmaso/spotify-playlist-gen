@@ -25,6 +25,7 @@ class Settings:
     spotify_client_id: str
     spotify_redirect_uri: str
     anthropic_model: str
+    lastfm_api_key: str
     db_path: Path
     host: str
     port: int
@@ -48,6 +49,7 @@ def load_settings() -> Settings:
             "SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8000/api/auth/callback"
         ),
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-opus-5"),
+        lastfm_api_key=os.getenv("LASTFM_API_KEY", ""),
         db_path=db_path,
         host=os.getenv("APP_HOST", "127.0.0.1"),
         port=int(os.getenv("APP_PORT", "8000")),

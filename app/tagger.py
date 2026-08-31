@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 
 import anthropic
 
@@ -84,10 +84,18 @@ Ademas:
   Lista solo los que encajen de verdad; una lista vacia es una respuesta valida.
 - descriptors: hasta 6 adjetivos cortos en castellano, en minusculas, sin tildes
   (ej: "hipnotica", "veraniega", "nostalgica", "densa").
-- confidence: cuanto conoces esta cancion en concreto. Si no la reconoces y estas
-  deduciendo el perfil del nombre del artista o del genero, pon un valor bajo (0-40).
-  Nunca inventes seguridad que no tienes: una etiqueta con confidence bajo es util,
-  una etiqueta segura y equivocada envenena la playlist.
+- confidence: cuanto se sostiene el perfil que acabas de dar. Si no reconoces la
+  cancion y estas deduciendo del nombre del artista o del genero, pon un valor bajo
+  (0-40). Nunca inventes seguridad que no tienes: una etiqueta con confidence bajo es
+  util, una etiqueta segura y equivocada envenena la playlist.
+
+Algunas canciones traen `tags:` con etiquetas que le ha puesto la comunidad de
+Last.fm, ordenadas de mas a menos usada. No son medidas acusticas, son personas que
+han escuchado el tema: usalos como la mejor pista disponible sobre genero, ambiente y
+epoca. Si no reconoces la cancion pero los tags describen algo concreto, el perfil ya
+no es una adivinanza y puedes subir el confidence a la zona media (45-65). Reservalo
+bajo para cuando ni la conoces ni hay tags utiles. Si los tags contradicen lo que
+creias saber de la cancion, fiate de tu conocimiento y bajalo un poco.
 
 Devuelve exactamente una entrada por cancion recibida, con el mismo track_id."""
 
@@ -127,12 +135,7 @@ class Tagger:
 
     def tag_batch(self, tracks: list[dict[str, Any]]) -> list[TrackVibe]:
         """Perfila un lote de canciones. Devuelve solo las que el modelo reconocio."""
-        listing = "\n".join(
-            f"{t['id']} | {', '.join(t['artists'])} - {t['name']}"
-            f" | album: {t.get('album') or '?'}"
-            f" | anyo: {t.get('release_year') or '?'}"
-            for t in tracks
-        )
+        listing = "\n".join(_describe(t) for t in tracks)
         response = self.client.messages.parse(
             model=self.model,
             max_tokens=16000,
@@ -170,7 +173,10 @@ class Tagger:
         return out
 
     def tag_all(
-        self, tracks: list[dict[str, Any]], batch_size: int = BATCH_SIZE
+        self,
+        tracks: list[dict[str, Any]],
+        batch_size: int = BATCH_SIZE,
+        prepare: Callable[[list[dict[str, Any]]], list[dict[str, Any]]] | None = None,
     ) -> Iterator[list[TrackVibe]]:
         """Genera los perfiles lote a lote para poder ir guardando el progreso.
 
@@ -179,6 +185,10 @@ class Tagger:
         """
         consecutive = 0
         for chunk in _chunks(tracks, batch_size):
+            if prepare is not None:
+                # Enriquecer lote a lote, no de una: en una biblioteca grande,
+                # resolver todo por adelantado son minutos con la barra parada.
+                chunk = prepare(chunk)
             try:
                 yield self.tag_batch(chunk)
                 consecutive = 0
@@ -253,6 +263,18 @@ class Tagger:
         # QueryDraft tiene un campo por eje, asi que no hay ejes inventados que
         # descartar: el esquema ya no los admite.
         return draft.to_query()
+
+
+def _describe(track: dict[str, Any]) -> str:
+    line = (
+        f"{track['id']} | {', '.join(track['artists'])} - {track['name']}"
+        f" | album: {track.get('album') or '?'}"
+        f" | anyo: {track.get('release_year') or '?'}"
+    )
+    tags = track.get("lastfm_tags")
+    if tags:
+        line += f" | tags: {', '.join(tags)}"
+    return line
 
 
 def _chunks(items: list[Any], size: int) -> Iterator[list[Any]]:

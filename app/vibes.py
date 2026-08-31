@@ -41,7 +41,8 @@ CONTEXTS: tuple[str, ...] = (
     "dormir",
 )
 
-TAGGER_VERSION = 1
+# 2: el etiquetador recibe los tags de comunidad de Last.fm como contexto.
+TAGGER_VERSION = 2
 
 ContextName = Literal[
     "piscina_verano",

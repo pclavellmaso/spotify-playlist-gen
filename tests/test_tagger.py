@@ -43,9 +43,11 @@ class FakeMessages:
     def __init__(self, outcomes):
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.sent: list[dict] = []
 
-    def parse(self, **_kwargs):
+    def parse(self, **kwargs):
         self.calls += 1
+        self.sent.append(kwargs)
         outcome = self.outcomes.pop(0) if self.outcomes else None
         if isinstance(outcome, Exception):
             raise outcome
@@ -207,3 +209,33 @@ def test_una_peticion_sin_nada_aprovechable_se_rechaza():
 def test_una_respuesta_ilegible_se_rechaza():
     with pytest.raises(ValueError, match="No se pudo interpretar"):
         _tagger([FakeResponse(None)]).parse_query("lo que sea")
+
+
+# -- contexto de last.fm ----------------------------------------------------
+def test_los_tags_de_lastfm_llegan_al_prompt():
+    tagger = _tagger([FakeResponse(TrackVibeBatch(tracks=[_vibe("t0")]))])
+    tagger.tag_batch([{**TRACKS[0], "lastfm_tags": ["deep house", "balearic"]}])
+    enviado = tagger.client.messages.sent[0]["messages"][0]["content"]
+    assert "tags: deep house, balearic" in enviado
+
+
+def test_una_cancion_sin_tags_no_ensucia_el_prompt():
+    tagger = _tagger([FakeResponse(TrackVibeBatch(tracks=[_vibe("t0")]))])
+    tagger.tag_batch([{**TRACKS[0], "lastfm_tags": []}])
+    assert "tags:" not in tagger.client.messages.sent[0]["messages"][0]["content"]
+
+
+def test_prepare_se_aplica_a_cada_lote():
+    vistos = []
+
+    def prepare(chunk):
+        vistos.append([t["id"] for t in chunk])
+        return [{**t, "lastfm_tags": ["marcado"]} for t in chunk]
+
+    outcomes = [FakeResponse(TrackVibeBatch(tracks=[_vibe(f"t{i}")])) for i in range(3)]
+    tagger = _tagger(outcomes)
+    list(tagger.tag_all(TRACKS[:3], batch_size=1, prepare=prepare))
+
+    assert vistos == [["t0"], ["t1"], ["t2"]]
+    for enviado in tagger.client.messages.sent:
+        assert "tags: marcado" in enviado["messages"][0]["content"]
