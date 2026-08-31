@@ -1,8 +1,12 @@
 # Handoff — Playlists por momento
 
-Documento de traspaso para continuar el proyecto en Claude Code desde el PC.
-Escrito el 31 de agosto de 2026. Contiene todo el contexto necesario: no hace
-falta la conversación original.
+Documento de traspaso. Contiene todo el contexto necesario: no hace falta la
+conversación original.
+
+Escrito el 31 de agosto de 2026. **Actualizado el 1 de septiembre de 2026**, tras
+la primera sesión que lo ejerció de verdad contra las APIs reales — que encontró
+tres bugs y cambió varias conclusiones de la versión anterior. Lo que ha cambiado
+está marcado con ⚠.
 
 ---
 
@@ -13,33 +17,26 @@ git clone https://github.com/pclavellmaso/spotify-playlist-gen
 cd spotify-playlist-gen
 git checkout main
 
-python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+uv venv --python 3.13 .venv                     # ver el aviso de abajo
+uv pip install --python .venv/bin/python -r requirements.txt
 
-cp .env.example .env      # rellenar las dos claves (ver §2)
-python -m pytest tests/ -q   # deben pasar 18
-python run.py             # abre http://127.0.0.1:8000
+cp .env.example .env      # rellenar las claves (ver §2)
+./.venv/bin/python -m pytest tests/ -q   # deben pasar 55
+./.venv/bin/python run.py                # abre http://127.0.0.1:8000
 ```
 
-Luego, en Claude Code dentro de esa carpeta:
-
-```
-claude
-```
-
-**Primer prompt sugerido para la nueva sesión** (cópialo tal cual):
-
-> Lee HANDOFF.md y README.md para el contexto. Es una web app local que genera
-> playlists de Spotify filtrando mi biblioteca según una descripción en lenguaje
-> natural del momento ("calma en la piscina con cervecita"). Está funcionando y
-> con 18 tests en verde. IMPORTANTE: Spotify retiró `audio-features` en 2024, no
-> intentes usarlo. Quiero [describe aquí lo que quieras hacer].
+⚠ **Sobre el entorno de Python.** El `python3 -m venv` de toda la vida puede no
+servir. En el Mac donde se montó esto (macOS 26) el único Python del sistema es
+3.9.6, demasiado antiguo para `anthropic` 1.x; y el `python@3.13` de Homebrew se
+instala pero está roto — su `pyexpat` enlaza contra un `/usr/lib/libexpat.1.dylib`
+que en macOS 26 no expone los símbolos que espera, así que `ensurepip` falla y no
+se puede crear ningún venv. La salida limpia es `uv`, que trae su propio CPython
+autocontenido (`brew install uv`). En otra máquina con un Python 3.10+ sano,
+`python -m venv` sirve igual.
 
 ---
 
 ## 2. Configuración necesaria
-
-Dos credenciales en `.env`:
 
 **`SPOTIFY_CLIENT_ID`** — crea una app en
 [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard).
@@ -53,7 +50,21 @@ http://127.0.0.1:8000/api/auth/callback
 Spotify ya no acepta `localhost`: tiene que ser la IP de loopback `127.0.0.1`.
 Si no coincide carácter por carácter, el login falla con `INVALID_CLIENT`.
 
+Al crear la app, marca **Web API** y nada más. Ojo: en el dashboard hay una
+sección aparte llamada *Spotify Soloist API Key* (un cliente de Spotify Connect
+para terminal, de agosto de 2026) que no tiene nada que ver. Lo que buscas se
+llama **Client ID**, son 32 caracteres hexadecimales, y no se genera con un
+botón: ya lo tiene la app que acabas de crear.
+
 **`ANTHROPIC_API_KEY`** — de [console.anthropic.com](https://console.anthropic.com).
+Tiene que haber **saldo** en *Plans & Billing*; sin créditos, cada llamada
+devuelve un 400 y no se etiqueta nada.
+
+⚠ **`LASTFM_API_KEY`** (opcional pero recomendable) — gratuita para uso no
+comercial en [last.fm/api/account/create](https://www.last.fm/api/account/create).
+Los campos de callback y homepage pueden ir vacíos: no se usa autenticación de
+usuario. Sin esta key la app funciona exactamente igual que antes, solo que el
+etiquetado es peor en catálogo poco conocido (ver §3).
 
 Opcional: `ANTHROPIC_MODEL` (por defecto `claude-opus-5`).
 
@@ -63,12 +74,18 @@ En la web, en este orden: **Sincronizar** (baja la biblioteca) → **Analizar
 pendientes** (etiqueta con Claude; tarda, puedes cerrar y volver) → escribe el
 momento → **Generar** → **Guardar en Spotify**.
 
+Ojo con la confusión más fácil: *Analizar* **no crea ninguna playlist**, solo
+etiqueta en local. *Generar* tampoco guarda nada, solo enseña la selección. La
+playlist se crea únicamente al pulsar *Guardar en Spotify*, con el nombre del
+campo de texto —precargado con el `label` que propone el modelo— y al terminar
+aparece el enlace para abrirla.
+
 ---
 
-## 3. Contexto crítico: las dos limitaciones de la API
+## 3. Contexto crítico: los límites de las APIs
 
 Esto es lo más importante del documento. Explica por qué el proyecto está hecho
-así y evita que la próxima sesión pierda tiempo en un callejón sin salida.
+así y evita que la próxima sesión pierda tiempo en callejones sin salida.
 
 ### `audio-features` está muerto
 
@@ -85,14 +102,31 @@ y no funcionan.
 > memoria de entrenamiento. Recuérdaselo.
 
 **Alternativa adoptada:** el perfil sonoro lo infiere Claude a partir de los
-metadatos (artista, título, álbum, año). Es una *estimación*, no una medición.
-Por eso cada etiqueta lleva un `confidence` y el scorer arrastra hacia neutro las
-canciones que el modelo no reconoce, en lugar de dejar que decidan.
+metadatos (artista, título, álbum, año) más los tags de Last.fm. Es una
+*estimación*, no una medición. Por eso cada etiqueta lleva un `confidence` y el
+scorer arrastra hacia neutro las canciones que el modelo no reconoce, en lugar de
+dejar que decidan.
 
-Alternativas descartadas, por si alguna vez interesan: Last.fm (tags de la
-comunidad, API gratuita — sería un buen complemento), AcousticBrainz (dataset
-congelado en 2022), Essentia/librosa (requiere el audio, que Spotify no da), y
-servicios comerciales de pago tipo Musicae o SoundNet.
+Alternativas descartadas: AcousticBrainz (dataset congelado en 2022),
+Essentia/librosa (requiere el audio, que Spotify no da), y servicios comerciales
+de pago tipo Musicae o SoundNet.
+
+### ⚠ En Last.fm, los tags por canción no existen
+
+Last.fm sí se usa (§4), pero **no como estaba previsto**. `track.getTopTags`
+devuelve una lista vacía de forma sistemática, y el `toptags` de `track.getInfo`
+también. No es cosa de un catálogo nicho: comprobado contra Santana *Smooth*
+(254.000 oyentes) y Lizzo *Juice* (664.000), ambos vacíos.
+
+Lo que sí está lleno y es útil es `album.getTopTags` y `artist.getTopTags`. El
+proyecto consulta esos dos y los combina.
+
+> Si una sesión futura propone `track.getTopTags` "porque es lo más específico",
+> ya se probó y no devuelve nada.
+
+La contrapartida: dos canciones del mismo disco reciben los mismos tags. Sitúan
+el género, la escena y la época, pero no distinguen una balada de un corte
+bailable del mismo álbum. Al prompt del etiquetador se le dice explícitamente.
 
 ### Developer Mode: 5 usuarios, y Premium obligatorio
 
@@ -115,23 +149,30 @@ Lo que **sí** sigue disponible en Developer Mode y usa el proyecto: perfil
 ## 4. Cómo funciona
 
 ```
-Spotify ──sync──▶ SQLite ──Claude (una vez por canción)──▶ perfil de vibe
-                                                                │
+Spotify ──sync──▶ SQLite ──┬── Last.fm (álbum + artista) ──┐
+                           │                               ▼
+                           └──────────── Claude (una vez por canción) ──▶ perfil
+                                                                            │
 tu frase ──Claude──▶ perfil objetivo ──distancia ponderada──▶ selección ──▶ playlist
 ```
 
-Dos decisiones de diseño que conviene no romper sin querer:
+Tres decisiones de diseño que conviene no romper sin querer:
 
 **1. El etiquetado se cachea de forma permanente.** Cada canción se analiza una
 sola vez y el resultado vive en SQLite. El coste está en la ingesta inicial, no
 en el uso: las consultas posteriores sólo llaman al modelo para interpretar tu
-frase. Si tocas los ejes o contextos de `app/vibes.py`, **sube `TAGGER_VERSION`**
-— eso invalida el cache y re-etiqueta sólo lo necesario.
+frase. Si tocas los ejes o contextos de `app/vibes.py`, o lo que ve el
+etiquetador, **sube `TAGGER_VERSION`** — eso invalida el cache y re-etiqueta sólo
+lo necesario. Va por la **2** (la 1 no tenía Last.fm).
 
 **2. El emparejamiento no usa LLM.** Es una distancia ponderada sobre siete ejes
 fijos, determinista y con tests. El LLM sólo traduce (canción → perfil, frase →
 perfil objetivo); comparar es aritmética. Esto mantiene el sistema barato,
 predecible y testeable.
+
+**3. ⚠ Lo que el modelo rellena tiene que tener campos con nombre.** Ver el bug
+del `dict` abierto en §5. Si añades algo que el modelo deba producir, no uses un
+diccionario libre: dale un campo por clave posible.
 
 ### El espacio de vibes (`app/vibes.py`)
 
@@ -145,85 +186,157 @@ Quince contextos cerrados: `piscina_verano`, `terraza_atardecer`, `fiesta`,
 
 Más hasta 6 descriptores libres en castellano por canción.
 
+`QueryDraft` es lo que produce el modelo al interpretar tu frase; `VibeQuery` es
+la forma que consume el scorer. La conversión está en `QueryDraft.to_query()`.
+
 ### Ficheros
 
 | Fichero | Responsabilidad |
 |---|---|
 | `app/vibes.py` | Vocabulario y esquemas Pydantic compartidos. **Tocar aquí = subir `TAGGER_VERSION`** |
 | `app/spotify.py` | OAuth PKCE, paginación, rate limiting (429 + `Retry-After`), crear playlists |
-| `app/db.py` | Cache SQLite: biblioteca + etiquetas |
+| `app/lastfm.py` | ⚠ Tags de comunidad de álbum y artista. Sin key, se desactiva en silencio |
+| `app/db.py` | Cache SQLite: biblioteca, etiquetas y tags de Last.fm |
 | `app/tagger.py` | Las dos llamadas a Claude: `tag_batch` y `parse_query` |
 | `app/matcher.py` | Puntuación y selección. Sin LLM |
 | `app/main.py` | API FastAPI + job de etiquetado en background |
 | `app/static/` | Front en HTML/CSS/JS a pelo, sin framework |
+| `scripts/vibes_report.py` | ⚠ Informe de calidad del etiquetado y comparación contra snapshots |
 
 ### Detalles ya resueltos (no re-hacer)
 
 - OAuth **PKCE** con validación de `state` (anti-CSRF)
 - Refresh automático del token; Spotify no reenvía el `refresh_token` al
   refrescar, y eso está contemplado
-- Rate limiting: respeta el `Retry-After` de los 429, reintentos con backoff
+- Rate limiting: respeta el `Retry-After` de los 429, reintentos con backoff.
+  Last.fm se consulta a 4 req/s como mucho, por debajo del límite de su ToS
 - Filtrado de podcasts, tracks locales y retirados (no tienen id usable)
 - El modelo puede alucinar o repetir un `track_id`: se filtra contra los pedidos
-- Un lote fallido no tumba un sync de 2.000 canciones; se reintenta en la
-  siguiente pasada
+- ⚠ Los errores permanentes del etiquetado (sin saldo, key inválida, modelo
+  inexistente) abortan en el primer lote; los transitorios se saltan, pero tres
+  seguidos abortan también
+- ⚠ Last.fm se cachea por entidad (`artist:x`, `album:x|y`), incluidas las
+  respuestas vacías: que no conozcan un artista es una respuesta
 - Tope por artista, con relleno si la diversidad deja la lista corta
 - Orden por curva de energía (`order: "flow"`) en vez de por afinidad
 
 ---
 
-## 5. Estado actual
+## 5. ⚠ Estado actual
 
-**Funciona y está testeado.** 18 tests en verde:
+**55 tests en verde**, y —a diferencia de la versión anterior de este
+documento— **el flujo real contra Spotify y Anthropic ya se ha ejercido**:
+OAuth completo, sync de 1.789 canciones, etiquetado, generación y scoring.
 
 - `tests/test_matcher.py` (9) — scoring, veto por descriptor, efecto del
   `confidence`, tope por artista, relleno, orden, filtro por nota mínima
 - `tests/test_db.py` (5) — upsert idempotente, invalidación por
   `TAGGER_VERSION`, normalización de descriptores, stats
-- `tests/test_api.py` (4) — recorrido HTTP completo de `/api/generate` con la
-  llamada a Claude sustituida; el resto se ejerce de verdad
+- `tests/test_api.py` (4) — recorrido HTTP completo de `/api/generate`
+- `tests/test_tagger.py` (21) — política de errores, `parse_query`, filtrado de
+  ids alucinados, contexto de Last.fm en el prompt
+- `tests/test_lastfm.py` (16) — cliente, filtrado de tags, cache por entidad
 
-Ningún test toca las APIs de Spotify ni de Claude.
+Ningún test toca las APIs de Spotify, Claude ni Last.fm.
 
-**Lo que NO se ha probado nunca**: el flujo real contra Spotify (OAuth, sync de
-una biblioteca de verdad) y la calidad real del etiquetado sobre música concreta.
-Requiere las credenciales, que están en tu PC, no en el entorno donde se
-desarrolló. **Esa es la primera validación que deberías hacer.**
+### Los tres bugs que encontró la validación real
+
+Merece la pena leerlos: los tres eran invisibles desde los tests y ninguno se
+habría encontrado sin ejercer el flujo de verdad.
+
+**1. Un etiquetado sin saldo terminaba "sin errores".** `tag_all` capturaba
+cualquier `APIError` por lote y seguía. Con la cuenta de Anthropic sin créditos,
+los 45 lotes de la biblioteca fallaban uno a uno, el job terminaba sin etiquetar
+nada y `_job["error"]` se quedaba en `None`: la UI solo mostraba una barra
+clavada en 0% que luego desaparecía. Arreglado separando errores permanentes de
+transitorios.
+
+**2. `targets` llegaba vacío y el 65% de la nota desaparecía.** Este es el
+importante. `VibeQuery.targets` era un `dict[str, int]`, que en JSON Schema se
+traduce a un objeto con `additionalProperties` y **ni una sola propiedad con
+nombre**: los siete ejes solo existían en la prosa del system prompt, no en el
+esquema que guía la generación. El modelo devolvía `{}` sistemáticamente y
+razonaba los ejes en `notes`, el único campo donde tenía sitio para escribirlos.
+Con `_axes_score` devolviendo `None`, la selección la decidían los contextos.
+Una petición de "calma en la piscina" devolvía Papi Chulo y *Life Is a Party*,
+todas por compartir la etiqueta `piscina_verano`. Insistir en el prompt no lo
+arreglaba; lo arregló `QueryDraft`, con un campo por eje.
+
+**3. `requirements.txt` no traía `httpx`.** El `TestClient` de Starlette lo
+necesita, y `httpx2` (el del SDK de anthropic) es otro paquete. En un entorno
+limpio los tests no llegaban ni a colectarse.
+
+### ⚠ Lo que sabemos de la calidad del etiquetado
+
+Medido sobre 90 canciones reales de la biblioteca, **sin** Last.fm:
+
+```
+confidence   media 30.8 · mediana 25 · dos tercios por debajo de 40
+```
+
+La causa: la biblioteca es house, DnB y electrónica reciente de sello pequeño,
+con mucho 2025-2026. El modelo no reconoce los temas, baja el `confidence` —que
+es la señal correcta— pero el perfil que devuelve acaba siendo el prior del
+género: los ejes de las canciones con confianza baja convergen todos al mismo
+sitio.
+
+Dos síntomas más, independientes de Last.fm y **sin resolver**:
+
+- **Contextos sobreasignados.** Ninguna de las 90 se quedó con la lista vacía,
+  pese a que el prompt dice que vacío es válido. Casi todas llevan 3-4.
+  `fiesta` en el 52% de la muestra, `terraza_atardecer` en el 46%. Si medio
+  catálogo es "fiesta", ese bloque —el 20% de la nota— no distingue nada. Y un
+  acierto de contexto puntúa 100 plano, sin matiz.
+- **Ejes comprimidos.** `danceability` con media 75.8 y mínimo 48: ni una sola
+  canción etiquetada como poco bailable. Parte es el gusto real, parte es rango
+  desaprovechado.
+
+Usa `scripts/vibes_report.py` para volver a medir esto en cualquier momento.
+Guarda un snapshot **antes** de re-etiquetar: `save_vibes` sobrescribe por
+`track_id` y si no, la comparación se pierde.
+
+```bash
+./.venv/bin/python scripts/vibes_report.py --snapshot
+./.venv/bin/python scripts/vibes_report.py data/snapshots/vibes-2026-09-01.json
+```
 
 ### Pendiente administrativo (1 clic, en GitHub)
 
 El repo estaba vacío al empezar, así que no existía `main`. La rama por defecto
-sigue siendo `claude/spotify-playlist-mood-filter-qigroz`, aunque `main` ya
-existe con el mismo commit (`2849a09`). Para arreglarlo:
+sigue siendo `claude/spotify-playlist-mood-filter-qigroz`. Un `git clone` cae en
+esa rama, no en `main`. Para arreglarlo:
 
 1. `github.com/pclavellmaso/spotify-playlist-gen/settings` → *General* →
    *Default branch* → cambiar a `main`
 2. En *Branches*, borrar `claude/spotify-playlist-mood-filter-qigroz`
 
-Ambas ramas son idénticas, así que es puramente cosmético.
+No hay `gh` instalado en la máquina, así que es manual.
 
 ---
 
-## 6. Siguientes pasos sugeridos
+## 6. ⚠ Siguientes pasos sugeridos
 
-**Primero, y por encima de todo: validar la calidad del etiquetado.** Sincroniza,
-etiqueta unas 50 canciones (`POST /api/tag` acepta `limit`) y mira si los
-perfiles tienen sentido *para tu música*. Todo lo demás depende de esto. Si con
-tu catálogo el `confidence` sale bajo de forma sistemática, el enfoque necesita
-ayuda y ahí es donde entran los tags de Last.fm.
+Por orden de valor, actualizado con lo que se sabe ahora:
 
-Después, por orden de valor:
-
-1. **Enriquecer con Last.fm** — API gratuita, tags de la comunidad (`chill`,
-   `summer`, `balearic`). Pasárselos al tagger como contexto adicional subiría
-   mucho la precisión en música que el modelo no conoce bien
+1. **Apretar el vocabulario de contextos.** Es el problema abierto más grande.
+   Opciones: pedir al etiquetador un máximo de 2 contextos y sólo si encajan de
+   verdad; puntuar el acierto de contexto de forma graduada en vez de 100 plano;
+   o partir los contextos demasiado anchos — `piscina_verano` cubre a la vez
+   "chill en la piscina" y "fiesta en la piscina", que son cosas distintas.
+   Cuidado: tocar `CONTEXTS` obliga a subir `TAGGER_VERSION` y re-etiquetar.
 2. **Excluir canciones ya usadas** — para que dos playlists del mismo tipo no
-   salgan idénticas
-3. **Feedback del usuario** — un "esta no encaja" que ajuste el perfil guardado
+   salgan idénticas.
+3. **Feedback del usuario** — un "esta no encaja" que ajuste el perfil guardado.
 4. **Batch API de Anthropic** — 50% más barato para el etiquetado masivo, que es
-   asíncrono por naturaleza. Vale la pena si acabas etiquetando miles de temas
+   asíncrono por naturaleza. Vale la pena si acabas etiquetando miles de temas.
 5. **Combinar varias fuentes** — ahora se filtra sobre una sola (likes *o* una
-   playlist)
+   playlist).
+
+Lo que **no** merece la pena: buscar más fuentes de tags para la cola del
+catálogo. Los artistas que el modelo no conoce en absoluto (Vesyr, KALEYA SYSTEM,
+Mx Cartier) tampoco están en Last.fm. Con más de la mitad de las entidades
+consultadas devolviendo vacío, esa cola probablemente no tenga arreglo por la vía
+de los metadatos.
 
 ### Ajustes rápidos sin tocar código
 
@@ -231,18 +344,24 @@ Después, por orden de valor:
 |---|---|
 | **Nota mínima** | 70 = selección corta y muy fiel · 40 = más amplia si sale vacía |
 | **Máx. por artista** | Evita que un disco cope la playlist |
+| **Analizar como máx.** | Tope de canciones por pasada. Empieza corto: valida la calidad antes de pagar el barrido completo |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5` abarata mucho el barrido inicial, a cambio de precisión en catálogo poco conocido |
 
 ---
 
 ## 7. Avisos
 
-- **`data/` está en `.gitignore` y debe seguir así.** Contiene la base SQLite y
-  `data/token.json` con tu token de OAuth de Spotify (permisos `0600`). Nunca
-  debe subirse a GitHub. Igual que `.env` con las dos API keys
+- **`data/` está en `.gitignore` y debe seguir así.** Contiene la base SQLite,
+  los snapshots de etiquetas y `data/token.json` con tu token de OAuth de Spotify
+  (permisos `0600`). Nunca debe subirse a GitHub. Igual que `.env` con las claves
 - Todo corre en local; nada sale de tu máquina salvo las llamadas a las APIs de
-  Spotify y Anthropic
+  Spotify, Anthropic y Last.fm
 - El SDK `anthropic` 1.x usa `httpx2`, no `httpx`. Si añades código HTTP, importa
-  `httpx2` (así lo hace `app/spotify.py`)
+  `httpx2` (así lo hacen `app/spotify.py` y `app/lastfm.py`). `httpx` a secas
+  está en `requirements.txt` sólo porque lo necesita el `TestClient` de Starlette
 - Se usa `client.messages.parse(output_format=ModeloPydantic)` y se lee
   `response.parsed_output`, que puede ser `None`: hay que comprobarlo
+- La barra de progreso avanza **por lote de 40**, no por canción, porque el
+  modelo devuelve el lote entero de una vez y dentro de él no hay progreso
+  observable. Bajar `BATCH_SIZE` daría una barra más fina y multiplicaría el
+  coste: se perdería el cacheo del prefijo del prompt
