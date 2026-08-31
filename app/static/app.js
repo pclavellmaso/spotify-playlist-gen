@@ -193,8 +193,10 @@ $("more").addEventListener("click", async (e) => {
   setBusy(e.target, true, "Buscando…");
   const antes = current.tracks.length;
   try {
+    // Sobre las que hay en pantalla, no sobre el tope configurado: si el tope
+    // era 30 y solo pasaban 3, subirlo a 40 dejaba entrar 40 de golpe.
     const nextMin = Math.max(0, (current.min_score ?? 55) - 15);
-    const nextLimit = (current.limit || antes) + 10;
+    const nextLimit = antes + 10;
     const r = await api("/api/more", {
       method: "POST",
       body: JSON.stringify({

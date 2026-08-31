@@ -79,10 +79,10 @@ def explain_spotify(exc: SpotifyError) -> str:
     """Traduce un error de la Web API a algo accionable."""
     if exc.status == 403:
         return (
-            "Spotify ha denegado la operacion (403). Suele ser una de dos cosas: "
-            "tu cuenta no esta anadida en User Management del dashboard de la app, "
-            "o no es Premium, que desde marzo de 2026 es obligatorio para el "
-            "desarrollador. Revisa developer.spotify.com/dashboard."
+            "Spotify ha denegado la operacion (403). Comprueba, en "
+            "developer.spotify.com/dashboard, que tu cuenta este anadida en "
+            "User Management de la app y que sea Premium, obligatorio para el "
+            "desarrollador desde marzo de 2026."
         )
     if exc.status == 404:
         return "Spotify no encuentra el recurso (404). Puede que la playlist ya no exista."

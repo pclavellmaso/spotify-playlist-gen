@@ -201,10 +201,13 @@ class SpotifyClient:
     def create_playlist(
         self, name: str, description: str, track_ids: list[str], public: bool = False
     ) -> dict[str, Any]:
-        user_id = self.me()["id"]
+        # `POST /users/{user_id}/playlists` es la forma antigua y ahora devuelve
+        # 403 aunque los scopes esten concedidos y la cuenta sea Premium y este
+        # en la lista de usuarios de la app. La documentada es `/me/playlists`,
+        # que ademas ahorra la llamada a /me.
         playlist = self._request(
             "POST",
-            f"/users/{user_id}/playlists",
+            "/me/playlists",
             json={
                 "name": name[:100],
                 "description": description[:300],
@@ -212,11 +215,16 @@ class SpotifyClient:
             },
         )
         # La API acepta 100 uris por llamada.
+        #
+        # `/tracks` quedo obsoleto el 11 de febrero de 2026 y devuelve 403, no
+        # un 404 ni un aviso de deprecacion, aunque los scopes esten concedidos.
+        # Como crear la playlist si funciona, el sintoma era una playlist vacia
+        # en la cuenta y un error sin explicacion. La ruta actual es `/items`.
         for i in range(0, len(track_ids), 100):
             chunk = track_ids[i : i + 100]
             self._request(
                 "POST",
-                f"/playlists/{playlist['id']}/tracks",
+                f"/playlists/{playlist['id']}/items",
                 json={"uris": [f"spotify:track:{tid}" for tid in chunk]},
             )
         return {
