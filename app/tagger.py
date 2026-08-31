@@ -19,6 +19,50 @@ log = logging.getLogger(__name__)
 
 BATCH_SIZE = 40
 
+# Errores que no mejoran reintentando: sin saldo, API key invalida, modelo
+# inexistente o peticion mal formada. Si un lote cae por esto, los siguientes
+# caeran igual: abortar en el primero evita quemar 45 llamadas en vacio y, sobre
+# todo, evita que el job termine "sin errores" y sin haber etiquetado nada.
+PERMANENT_ERRORS = (
+    anthropic.AuthenticationError,
+    anthropic.PermissionDeniedError,
+    anthropic.NotFoundError,
+    anthropic.BadRequestError,
+    anthropic.UnprocessableEntityError,
+)
+
+# Un fallo transitorio suelto se salta; una racha significa que algo va mal de
+# verdad y no tiene sentido seguir recorriendo la biblioteca.
+MAX_CONSECUTIVE_FAILURES = 3
+
+
+class TaggingAborted(RuntimeError):
+    """El etiquetado no puede continuar. El mensaje se muestra tal cual en la UI."""
+
+
+def explain_error(exc: Exception, model: str) -> str:
+    """Traduce un error del SDK a algo accionable para quien mira la pantalla."""
+    text = str(exc)
+    if "credit balance is too low" in text:
+        return (
+            "La cuenta de Anthropic no tiene saldo. Anade creditos en "
+            "console.anthropic.com (Plans & Billing) y vuelve a darle a analizar."
+        )
+    if isinstance(exc, anthropic.AuthenticationError):
+        return (
+            "ANTHROPIC_API_KEY no es valida. Revisala en .env y reinicia la app."
+        )
+    if isinstance(exc, anthropic.PermissionDeniedError):
+        return f"La API key no tiene acceso al modelo '{model}'."
+    if isinstance(exc, anthropic.NotFoundError):
+        return (
+            f"El modelo '{model}' no existe. Revisa ANTHROPIC_MODEL en .env."
+        )
+    if isinstance(exc, anthropic.RateLimitError):
+        return "Anthropic esta limitando las peticiones. Prueba en unos minutos."
+    return f"Error de la API de Claude: {text}"
+
+
 # Prefijo estable: se cachea entre lotes y solo cambia si tocas el vocabulario.
 TAGGER_SYSTEM = f"""Eres un critico musical que perfila canciones para un motor de playlists.
 
@@ -118,14 +162,29 @@ class Tagger:
     def tag_all(
         self, tracks: list[dict[str, Any]], batch_size: int = BATCH_SIZE
     ) -> Iterator[list[TrackVibe]]:
-        """Genera los perfiles lote a lote para poder ir guardando el progreso."""
+        """Genera los perfiles lote a lote para poder ir guardando el progreso.
+
+        Lanza TaggingAborted si el problema no es del lote sino de la cuenta o
+        la configuracion: seguir intentandolo solo retrasa el diagnostico.
+        """
+        consecutive = 0
         for chunk in _chunks(tracks, batch_size):
             try:
                 yield self.tag_batch(chunk)
+                consecutive = 0
+            except PERMANENT_ERRORS as exc:
+                raise TaggingAborted(explain_error(exc, self.model)) from exc
             except anthropic.APIError as exc:
-                # Un lote fallido no debe tumbar un sync de 2.000 canciones:
-                # las que queden sin etiqueta se reintentan en la proxima pasada.
+                # Un lote fallido puntual no debe tumbar un sync de 2.000
+                # canciones: las que queden sin etiqueta se reintentan en la
+                # proxima pasada. Una racha si, porque ya no es puntual.
+                consecutive += 1
                 log.error("Fallo al etiquetar un lote de %d: %s", len(chunk), exc)
+                if consecutive >= MAX_CONSECUTIVE_FAILURES:
+                    raise TaggingAborted(
+                        f"{consecutive} lotes seguidos han fallado. "
+                        f"{explain_error(exc, self.model)}"
+                    ) from exc
                 yield []
 
     def parse_query(self, prompt: str) -> VibeQuery:

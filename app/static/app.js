@@ -61,7 +61,8 @@ async function refreshStats() {
     $("bar").style.width = `${Math.round((job.done / job.total) * 100)}%`;
     setTimeout(refreshStats, 2500);
   }
-  if (job.error) $("libstats").textContent += ` · error: ${job.error}`;
+  $("taberror").textContent = job.error || "";
+  $("taberror").classList.toggle("hidden", !job.error);
   return s;
 }
 
@@ -84,10 +85,14 @@ $("sync").addEventListener("click", async (e) => {
 
 $("tag").addEventListener("click", async (e) => {
   setBusy(e.target, true, "Lanzando…");
+  $("taberror").classList.add("hidden");
   try {
     const r = await api("/api/tag", {
       method: "POST",
-      body: JSON.stringify({ source: $("source").value }),
+      body: JSON.stringify({
+        source: $("source").value,
+        limit: Number($("taglimit").value) || null,
+      }),
     });
     if (!r.started) alert("No hay nada pendiente de analizar.");
     await refreshStats();

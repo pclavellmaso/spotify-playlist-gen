@@ -15,7 +15,7 @@ from app.config import SCOPES, settings
 from app.db import Library
 from app.matcher import select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
-from app.tagger import Tagger
+from app.tagger import Tagger, TaggingAborted
 from app.vibes import TAGGER_VERSION
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -165,6 +165,12 @@ def tag(req: TagRequest) -> dict[str, Any]:
                     # Se avanza por lote completo aunque alguna cancion se caiga:
                     # asi la barra refleja el trabajo hecho, no el conseguido.
                     _job["done"] = min(_job["done"] + len(vibes), _job["total"])
+        except TaggingAborted as exc:
+            # El mensaje ya viene redactado para la pantalla; el traceback no
+            # aporta nada porque la causa es la cuenta o el .env, no el codigo.
+            log.error("Etiquetado abortado: %s", exc)
+            with _job_lock:
+                _job["error"] = str(exc)
         except Exception as exc:
             log.exception("Etiquetado interrumpido")
             with _job_lock:
