@@ -132,16 +132,19 @@ $("generate").addEventListener("click", async (e) => {
   if (!prompt) return;
   setBusy(e.target, true, "Pensando…");
   try {
+    const limit = Number($("limit").value);
     current = await api("/api/generate", {
       method: "POST",
       body: JSON.stringify({
         prompt,
         source: $("source").value,
-        limit: Number($("limit").value),
+        limit,
         min_score: Number($("minscore").value),
         max_per_artist: Number($("maxartist").value),
       }),
     });
+    current.limit = limit;
+    current.limitPedido = limit;
     render(current);
   } catch (err) {
     alert(err.message);
@@ -155,8 +158,12 @@ function render(result) {
   $("saved").textContent = "";
   $("reslabel").textContent = result.query.label || "Seleccion";
   $("notes").textContent =
-    `${result.tracks.length} de ${result.pool} analizadas · ${result.query.notes}`;
-  $("plname").value = result.query.label || "";
+    `${result.tracks.length} de ${result.pool} analizadas · nota minima ${result.min_score}`
+    + ` · ${result.query.notes}`;
+  // No se pisa un nombre que ya haya escrito el usuario al ampliar la lista.
+  if (!$("plname").value) $("plname").value = result.query.label || "";
+  $("more").classList.toggle("hidden", result.min_score <= 0
+    && result.tracks.length < result.limitPedido);
 
   $("tracks").innerHTML = "";
   for (const t of result.tracks) {
@@ -177,6 +184,39 @@ function render(result) {
     $("notes").textContent += " — nada supero la nota minima, prueba a bajarla.";
   }
 }
+
+// Con una biblioteca sesgada -toda musica de baile, por ejemplo- una peticion
+// muy alejada de su centro deja casi todo por debajo de la nota minima. En vez
+// de dejar al usuario ajustando el numero a mano, se baja el liston por pasos.
+$("more").addEventListener("click", async (e) => {
+  if (!current) return;
+  setBusy(e.target, true, "Buscando…");
+  const antes = current.tracks.length;
+  try {
+    const nextMin = Math.max(0, (current.min_score ?? 55) - 15);
+    const nextLimit = (current.limit || antes) + 10;
+    const r = await api("/api/more", {
+      method: "POST",
+      body: JSON.stringify({
+        query: current.query,
+        source: $("source").value,
+        limit: nextLimit,
+        min_score: nextMin,
+        max_per_artist: Number($("maxartist").value),
+      }),
+    });
+    current = { ...r, limit: nextLimit, limitPedido: nextLimit };
+    render(current);
+    if (current.tracks.length === antes) {
+      $("notes").textContent +=
+        " — no hay mas canciones que encajen en tu biblioteca.";
+    }
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    setBusy(e.target, false, "Anadir 10 mas");
+  }
+});
 
 $("save").addEventListener("click", async (e) => {
   if (!current || !current.tracks.length) return;

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -18,7 +18,7 @@ from app.lastfm import LastfmClient, album_key, artist_key, merge
 from app.matcher import select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
 from app.tagger import BATCH_SIZE, Tagger, TaggingAborted
-from app.vibes import TAGGER_VERSION
+from app.vibes import TAGGER_VERSION, VibeQuery
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("playlist-gen")
@@ -62,9 +62,33 @@ def _tagger() -> Tagger:
         raise HTTPException(500, f"No se pudo iniciar Claude: {exc}") from exc
 
 
+# Un exception_handler tiene que *devolver* una respuesta. Lanzar HTTPException
+# desde dentro no la convierte en 401: se propaga y sale un 500 con el traceback
+# crudo, que es justo lo que no queremos que vea nadie.
 @app.exception_handler(SpotifyAuthError)
-def _auth_error(_request, exc: SpotifyAuthError):
-    raise HTTPException(401, str(exc))
+def _auth_error(_request, exc: SpotifyAuthError) -> JSONResponse:
+    return JSONResponse({"detail": str(exc)}, status_code=401)
+
+
+@app.exception_handler(SpotifyError)
+def _spotify_error(_request, exc: SpotifyError) -> JSONResponse:
+    return JSONResponse({"detail": explain_spotify(exc)}, status_code=502)
+
+
+def explain_spotify(exc: SpotifyError) -> str:
+    """Traduce un error de la Web API a algo accionable."""
+    if exc.status == 403:
+        return (
+            "Spotify ha denegado la operacion (403). Suele ser una de dos cosas: "
+            "tu cuenta no esta anadida en User Management del dashboard de la app, "
+            "o no es Premium, que desde marzo de 2026 es obligatorio para el "
+            "desarrollador. Revisa developer.spotify.com/dashboard."
+        )
+    if exc.status == 404:
+        return "Spotify no encuentra el recurso (404). Puede que la playlist ya no exista."
+    if exc.status == 429:
+        return "Spotify esta limitando las peticiones. Prueba en unos minutos."
+    return str(exc)
 
 
 # -- front ------------------------------------------------------------------
@@ -261,16 +285,10 @@ class GenerateRequest(BaseModel):
     order: str = Field(default="flow", pattern="^(flow|score)$")
 
 
-@app.post("/api/generate")
-def generate(req: GenerateRequest) -> dict[str, Any]:
+def _selection(query: VibeQuery, req: Any) -> dict[str, Any]:
     tracks = library.tagged_tracks(req.source, TAGGER_VERSION)
     if not tracks:
         raise HTTPException(400, "No hay canciones etiquetadas. Sincroniza y etiqueta primero.")
-
-    try:
-        query = _tagger().parse_query(req.prompt)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
 
     picked = select(
         tracks,
@@ -283,6 +301,7 @@ def generate(req: GenerateRequest) -> dict[str, Any]:
     return {
         "query": query.model_dump(),
         "pool": len(tracks),
+        "min_score": req.min_score,
         "tracks": [
             {
                 "id": t["id"],
@@ -297,6 +316,41 @@ def generate(req: GenerateRequest) -> dict[str, Any]:
             for t in picked
         ],
     }
+
+
+@app.post("/api/generate")
+def generate(req: GenerateRequest) -> dict[str, Any]:
+    try:
+        query = _tagger().parse_query(req.prompt)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return _selection(query, req)
+
+
+class MoreRequest(BaseModel):
+    """Ampliar una seleccion ya hecha, sin volver a interpretar la frase."""
+
+    query: VibeQuery
+    source: str = "liked"
+    limit: int = Field(default=40, ge=1, le=200)
+    min_score: float = Field(default=0.0, ge=0, le=100)
+    max_per_artist: int = Field(default=2, ge=1, le=10)
+    order: str = Field(default="flow", pattern="^(flow|score)$")
+
+
+@app.post("/api/more")
+def more(req: MoreRequest) -> dict[str, Any]:
+    """Devuelve la seleccion entera con el liston mas bajo, no solo lo nuevo.
+
+    Reutiliza la interpretacion que ya devolvio /api/generate, asi que no gasta
+    una llamada al modelo y, sobre todo, no cambia de idea a mitad: "mas
+    canciones" significa las siguientes mejores para *esta misma* peticion.
+
+    Se rehace la seleccion completa en vez de anadir por debajo porque el tope
+    por artista y el orden por curva de energia son globales: encajar las nuevas
+    en la lista existente daria un resultado distinto al de pedirlas de una vez.
+    """
+    return _selection(req.query, req)
 
 
 class SaveRequest(BaseModel):

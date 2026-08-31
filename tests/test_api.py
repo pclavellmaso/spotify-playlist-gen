@@ -76,3 +76,66 @@ def test_stats_reports_the_tagged_library(client):
 def test_sync_rejects_an_unknown_source(client):
     res = client.post("/api/sync", json={"source": "album:123"})
     assert res.status_code == 400
+
+
+# -- ampliar la seleccion ---------------------------------------------------
+class TaggerQueNoDebeUsarse:
+    def parse_query(self, prompt):
+        raise AssertionError("/api/more no debe volver a interpretar la frase")
+
+
+QUERY = {
+    "label": "Piscina y cerveza",
+    "targets": {"energy": 33, "valence": 76, "warmth": 82},
+    "weights": {"energy": 1.0, "valence": 1.0, "warmth": 0.7},
+    "contexts": ["piscina_verano"],
+    "descriptors": ["veraniega", "relajada"],
+    "avoid_descriptors": [],
+    "notes": "",
+}
+
+
+def test_more_amplia_sin_volver_a_llamar_al_modelo(client, monkeypatch):
+    monkeypatch.setattr(main, "_tagger", lambda: TaggerQueNoDebeUsarse())
+    estricto = client.post("/api/more", json={"query": QUERY, "min_score": 90}).json()
+    amplio = client.post("/api/more", json={"query": QUERY, "min_score": 0}).json()
+    assert len(amplio["tracks"]) > len(estricto["tracks"])
+
+
+def test_more_devuelve_la_seleccion_entera_no_solo_lo_nuevo(client):
+    # El tope por artista y el orden por energia son globales: la lista se
+    # rehace completa para que el resultado sea el mismo que pidiendola de una.
+    body = client.post("/api/more", json={"query": QUERY, "min_score": 0}).json()
+    assert [t["id"] for t in body["tracks"]] == ["chill", "hard"]
+    assert body["min_score"] == 0
+
+
+def test_more_rechaza_una_query_invalida(client):
+    assert client.post("/api/more", json={"query": {"label": "x", "targets": "no"}}).status_code == 422
+
+
+# -- errores de spotify -----------------------------------------------------
+def test_un_error_de_spotify_no_sale_como_500(client, monkeypatch):
+    # Lanzar HTTPException desde un exception_handler no produce el 4xx: se
+    # propaga y el front solo veia "Error 500".
+    from app.spotify import SpotifyError
+
+    def denegado(*a, **k):
+        raise SpotifyError(403, '{"error": {"status": 403, "message": "Forbidden"}}')
+
+    monkeypatch.setattr(main.spotify, "create_playlist", denegado)
+    res = client.post("/api/save", json={"name": "x", "track_ids": ["chill"]})
+    assert res.status_code == 502
+    assert "Premium" in res.json()["detail"]
+
+
+def test_una_sesion_caducada_devuelve_401(client, monkeypatch):
+    from app.spotify import SpotifyAuthError
+
+    def caducado(*a, **k):
+        raise SpotifyAuthError("La sesion de Spotify caduco, vuelve a conectar")
+
+    monkeypatch.setattr(main.spotify, "create_playlist", caducado)
+    res = client.post("/api/save", json={"name": "x", "track_ids": ["chill"]})
+    assert res.status_code == 401
+    assert "caduco" in res.json()["detail"]

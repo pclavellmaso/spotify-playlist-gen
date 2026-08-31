@@ -236,13 +236,24 @@ def _normalize(item: dict[str, Any], source: str) -> dict[str, Any] | None:
     track = item.get("track") or {}
     if not track.get("id") or track.get("is_local") or track.get("type") != "track":
         return None
+
+    name = (track.get("name") or "").strip()
+    artists = [a["name"] for a in track.get("artists", []) if (a.get("name") or "").strip()]
+    # Un tema retirado del catalogo conserva el id y el type pero vuelve con
+    # todos los metadatos en blanco. No hay nada que perfilar -seria gastar una
+    # llamada al modelo sobre la nada- y en una playlist saldria como pista no
+    # disponible, asi que se descarta igual que un local.
+    if not name or not artists:
+        return None
+
     release = (track.get("album") or {}).get("release_date") or ""
+    year = int(release[:4]) if release[:4].isdigit() else None
     return {
         "id": track["id"],
-        "name": track["name"],
-        "artists": [a["name"] for a in track.get("artists", [])],
-        "album": (track.get("album") or {}).get("name"),
-        "release_year": int(release[:4]) if release[:4].isdigit() else None,
+        "name": name,
+        "artists": artists,
+        "album": (track.get("album") or {}).get("name") or None,
+        "release_year": year or None,
         "duration_ms": track.get("duration_ms"),
         "popularity": track.get("popularity"),
         "source": source,
