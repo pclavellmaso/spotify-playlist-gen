@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.config import SCOPES, settings
 from app.db import Library
-from app.lastfm import LastfmClient
+from app.lastfm import LastfmClient, album_key, artist_key, merge
 from app.matcher import select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
 from app.tagger import BATCH_SIZE, Tagger, TaggingAborted
@@ -186,19 +186,40 @@ def tag(req: TagRequest) -> dict[str, Any]:
         """Adjunta los tags de comunidad, del cache o preguntando lo que falte."""
         if not lastfm.enabled:
             return chunk
-        cached = library.lastfm_tags([t["id"] for t in chunk])
-        fetched: dict[str, list[str]] = {}
+
+        # Se pregunta por artista y album, no por cancion: a nivel de tema
+        # Last.fm devuelve vacio siempre. Varias canciones comparten entidad,
+        # asi que un lote de 40 suele resolverse con muchas menos peticiones.
+        needed: dict[str, tuple[str, str]] = {}
         for track in chunk:
-            if track["id"] in cached:
-                continue
             artist = (track["artists"] or [""])[0]
+            if not artist:
+                continue
+            needed[artist_key(artist)] = ("artist", artist)
+            if track.get("album"):
+                needed[album_key(artist, track["album"])] = ("album", artist)
+
+        cached = library.lastfm_tags(list(needed))
+        fetched: dict[str, list[str]] = {}
+        for key, (kind, artist) in needed.items():
+            if key in cached:
+                continue
             # Se cachea tambien la lista vacia: "Last.fm no lo conoce" es una
             # respuesta, y no hay que volver a preguntarla en cada pasada.
-            fetched[track["id"]] = lastfm.top_tags(artist, track["name"])
+            if kind == "artist":
+                fetched[key] = lastfm.artist_tags(artist)
+            else:
+                fetched[key] = lastfm.album_tags(artist, key.split("|", 1)[1])
         if fetched:
             library.save_lastfm_tags(fetched)
+
         tags = {**cached, **fetched}
-        return [{**t, "lastfm_tags": tags.get(t["id"], [])} for t in chunk]
+        out = []
+        for track in chunk:
+            artist = (track["artists"] or [""])[0]
+            album = tags.get(album_key(artist, track["album"]), []) if track.get("album") else []
+            out.append({**track, "lastfm_tags": merge(album, tags.get(artist_key(artist), []))})
+        return out
 
     def worker() -> None:
         try:

@@ -89,13 +89,20 @@ Ademas:
   (0-40). Nunca inventes seguridad que no tienes: una etiqueta con confidence bajo es
   util, una etiqueta segura y equivocada envenena la playlist.
 
-Algunas canciones traen `tags:` con etiquetas que le ha puesto la comunidad de
-Last.fm, ordenadas de mas a menos usada. No son medidas acusticas, son personas que
-han escuchado el tema: usalos como la mejor pista disponible sobre genero, ambiente y
-epoca. Si no reconoces la cancion pero los tags describen algo concreto, el perfil ya
-no es una adivinanza y puedes subir el confidence a la zona media (45-65). Reservalo
-bajo para cuando ni la conoces ni hay tags utiles. Si los tags contradicen lo que
-creias saber de la cancion, fiate de tu conocimiento y bajalo un poco.
+Algunas canciones traen `tags:` con etiquetas de la comunidad de Last.fm, ordenadas de
+mas a menos usada. No son medidas acusticas: las escriben personas que han escuchado la
+musica, y son la mejor pista disponible sobre genero, escena y epoca.
+
+Importante: **esos tags son del album y del artista, no de la cancion**. A nivel de tema
+Last.fm no tiene nada. Eso significa que situan el terreno -si un artista es neurofunk o
+french house, si un disco es de 2019- pero no distinguen una balada de un corte bailable
+del mismo album. Usalos para el genero y la produccion, y decide la energia, el
+tempo_feel y la valence por lo que sepas de la cancion concreta.
+
+Si no reconoces la cancion pero los tags situan bien al artista, el perfil deja de ser
+una adivinanza a ciegas y puedes subir el confidence a la zona media (45-65). Reserva
+lo bajo (0-40) para cuando ni la conoces ni hay tags utiles. Si los tags contradicen lo
+que creias saber de la cancion, fiate de tu conocimiento y baja un poco el confidence.
 
 Devuelve exactamente una entrada por cancion recibida, con el mismo track_id."""
 

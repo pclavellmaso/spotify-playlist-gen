@@ -3,17 +3,24 @@
 El perfil de cada cancion lo infiere Claude de los metadatos, asi que en
 catalogo nicho o muy reciente el modelo no reconoce el tema y baja el
 `confidence` -que es lo correcto- pero el perfil que devuelve acaba siendo el
-prior del genero: sobre una muestra de 50 canciones, dos tercios salieron por
+prior del genero: sobre una muestra de 90 canciones, dos tercios salieron por
 debajo de 40 de confianza y sus ejes convergian todos al mismo sitio.
 
 Last.fm no sabe nada de acustica, pero sus tags los escriben personas que si
-han escuchado el tema: `deep house`, `liquid dnb`, `balearic`, `summer`,
-`chillout`. Pasarselos al tagger le da algo real sobre lo que trabajar en vez
-de adivinar por el nombre del artista.
+han escuchado la musica: `trip-hop`, `neurofunk`, `french house`, `2019`.
+
+**Se consultan album y artista, no la cancion.** `track.getTopTags` y el
+`toptags` de `track.getInfo` vuelven vacios de forma sistematica -comprobado
+incluso con Santana "Smooth" y Lizzo "Juice", con cientos de miles de oyentes-
+asi que a nivel de tema no hay nada que usar. Album y artista si estan llenos.
+El album es mas especifico y suele traer la epoca; el artista es la base.
+
+La contrapartida es que dos canciones del mismo disco reciben los mismos tags,
+asi que esto situa el genero y la epoca, no distingue una balada de un corte
+bailable del mismo album. Al etiquetador se le dice explicitamente.
 
 La API es gratuita para uso no comercial y pide no pasar de 5 peticiones por
-segundo. Cada consulta se cachea en SQLite, incluidas las que no devuelven
-nada, para no volver a preguntar por lo mismo.
+segundo.
 """
 from __future__ import annotations
 
@@ -31,9 +38,9 @@ API = "https://ws.audioscrobbler.com/2.0/"
 # el etiquetado es asincrono y no hay ninguna prisa.
 MIN_INTERVAL = 0.25
 
-# Los `count` de Last.fm son relativos al tema (0-100). Por debajo de esto son
-# tags de una persona suelta y suelen ser ruido.
-MIN_COUNT = 10
+# Los `count` de Last.fm son relativos (0-100). Por debajo de esto son tags de
+# una persona suelta y suelen ser ruido.
+MIN_COUNT = 5
 MAX_TAGS = 8
 
 # Tags que no dicen nada del sonido. La lista corta a proposito: es mejor dejar
@@ -42,12 +49,20 @@ JUNK = {
     "seen live", "favorites", "favourites", "favorite songs", "favourite songs",
     "spotify", "awesome", "love", "loved", "best", "beautiful", "good",
     "my music", "tracks", "songs", "music", "favorite", "favourite",
-    "check out", "under 2000 listeners", "albums i own",
+    "check out", "under 2000 listeners", "albums i own", "albums i own on vinyl",
 }
 
 
+def artist_key(artist: str) -> str:
+    return f"artist:{artist.lower().strip()}"
+
+
+def album_key(artist: str, album: str) -> str:
+    return f"album:{artist.lower().strip()}|{album.lower().strip()}"
+
+
 class LastfmClient:
-    """Cliente minimo de track.getTopTags. Sin key, se desactiva en silencio."""
+    """Cliente minimo de Last.fm. Sin key, se desactiva en silencio."""
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -57,13 +72,22 @@ class LastfmClient:
     def enabled(self) -> bool:
         return bool(self.api_key)
 
-    def top_tags(self, artist: str, track: str) -> list[str]:
-        """Tags de comunidad de un tema, filtrados y ordenados por relevancia.
+    def artist_tags(self, artist: str) -> list[str]:
+        if not artist:
+            return []
+        return self._tags("artist.gettoptags", {"artist": artist}, drop={artist})
 
-        Devuelve lista vacia si no hay key, si Last.fm no conoce el tema o si
-        la peticion falla: el etiquetado debe seguir funcionando sin esto.
-        """
-        if not self.enabled or not artist or not track:
+    def album_tags(self, artist: str, album: str) -> list[str]:
+        if not artist or not album:
+            return []
+        return self._tags(
+            "album.gettoptags", {"artist": artist, "album": album}, drop={artist, album}
+        )
+
+    def _tags(self, method: str, params: dict[str, str], drop: set[str]) -> list[str]:
+        """Devuelve lista vacia ante cualquier problema: esto no puede tumbar
+        un etiquetado de 1.800 canciones."""
+        if not self.enabled:
             return []
 
         self._throttle()
@@ -71,21 +95,20 @@ class LastfmClient:
             resp = httpx.get(
                 API,
                 params={
-                    "method": "track.gettoptags",
-                    "artist": artist,
-                    "track": track,
+                    "method": method,
                     "api_key": self.api_key,
                     "autocorrect": 1,
                     "format": "json",
+                    **params,
                 },
                 timeout=10.0,
             )
         except httpx.HTTPError as exc:
-            log.debug("Last.fm no respondio para %s - %s: %s", artist, track, exc)
+            log.debug("Last.fm no respondio a %s %s: %s", method, params, exc)
             return []
 
         if resp.status_code != 200:
-            log.debug("Last.fm %s para %s - %s", resp.status_code, artist, track)
+            log.debug("Last.fm %s en %s %s", resp.status_code, method, params)
             return []
         try:
             payload = resp.json()
@@ -93,13 +116,13 @@ class LastfmClient:
             return []
 
         if "error" in payload:
-            # 6 = el tema no existe en su catalogo, que es de lo mas normal.
+            # 6 = no esta en su catalogo, que es de lo mas normal.
             if payload.get("error") != 6:
                 log.warning("Last.fm error %s: %s", payload.get("error"),
                             payload.get("message"))
             return []
 
-        return _clean(payload, artist, track)
+        return _clean(payload, drop)
 
     def _throttle(self) -> None:
         wait = MIN_INTERVAL - (time.monotonic() - self._last_call)
@@ -108,13 +131,13 @@ class LastfmClient:
         self._last_call = time.monotonic()
 
 
-def _clean(payload: dict[str, Any], artist: str, track: str) -> list[str]:
+def _clean(payload: dict[str, Any], drop: set[str]) -> list[str]:
     raw = (payload.get("toptags") or {}).get("tag") or []
     # Con un solo tag, Last.fm devuelve el objeto en vez de una lista de uno.
     if isinstance(raw, dict):
         raw = [raw]
 
-    descartar = {artist.lower().strip(), track.lower().strip()} | JUNK
+    descartar = {d.lower().strip() for d in drop} | JUNK
     tags: list[str] = []
     for item in raw:
         if not isinstance(item, dict):
@@ -132,3 +155,14 @@ def _clean(payload: dict[str, Any], artist: str, track: str) -> list[str]:
         if len(tags) == MAX_TAGS:
             break
     return tags
+
+
+def merge(album: list[str], artist: list[str], limit: int = MAX_TAGS) -> list[str]:
+    """Album primero por ser mas especifico, artista para completar."""
+    out: list[str] = []
+    for tag in [*album, *artist]:
+        if tag not in out:
+            out.append(tag)
+        if len(out) == limit:
+            break
+    return out
