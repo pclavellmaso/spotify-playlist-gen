@@ -109,7 +109,6 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 PAGINAS = {
     "/": ("index.html", "inicio"),
     "/metodo": ("metodo.html", "metodo"),
-    "/ejemplos": ("demos.html", "demos"),
     "/guia": ("guia.html", "guia"),
     "/app": ("app.html", "app"),
     "/ajustes": ("ajustes.html", "ajustes"),
@@ -129,11 +128,6 @@ def inicio(request: Request):
 @app.get("/metodo")
 def metodo(request: Request):
     return _pagina(request, "/metodo")
-
-
-@app.get("/ejemplos")
-def ejemplos(request: Request):
-    return _pagina(request, "/ejemplos")
 
 
 @app.get("/guia")
