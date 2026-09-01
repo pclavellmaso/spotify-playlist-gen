@@ -179,7 +179,8 @@ class SpotifyClient:
             {
                 "id": p["id"],
                 "name": p["name"],
-                "total": p.get("tracks", {}).get("total", 0),
+                # Febrero de 2026: `tracks` pasa a `items` y queda a null.
+                "total": ((p.get("items") or p.get("tracks")) or {}).get("total", 0),
                 "owner": p.get("owner", {}).get("display_name"),
             }
             for p in self._paginate("/me/playlists", {"limit": 50})
@@ -191,8 +192,10 @@ class SpotifyClient:
         return [t for t in (_normalize(i, "liked") for i in items) if t]
 
     def playlist_tracks(self, playlist_id: str) -> list[dict[str, Any]]:
+        # `/tracks` responde 403 desde febrero de 2026, no un 404: sincronizar
+        # desde una playlist fallaba con un error que parecia de permisos.
         items = self._paginate(
-            f"/playlists/{playlist_id}/tracks",
+            f"/playlists/{playlist_id}/items",
             {"limit": 100, "additional_types": "track"},
         )
         source = f"playlist:{playlist_id}"
@@ -241,7 +244,9 @@ def _normalize(item: dict[str, Any], source: str) -> dict[str, Any] | None:
     Devuelve None para episodios de podcast, locales y tracks retirados: no
     tienen id utilizable y romperian la creacion de playlists.
     """
-    track = item.get("track") or {}
+    # /me/tracks sigue devolviendo la cancion en `track`; /playlists/{id}/items
+    # la devuelve en `item`. Se aceptan las dos para no depender de la ruta.
+    track = item.get("track") or item.get("item") or {}
     if not track.get("id") or track.get("is_local") or track.get("type") != "track":
         return None
 

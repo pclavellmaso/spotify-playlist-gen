@@ -123,3 +123,33 @@ def test_las_uris_llevan_el_prefijo_de_spotify(monkeypatch):
     client.create_playlist("x", "", ["abc123"])
     envio = [c for c in fake.calls if c[1] == "/playlists/pl1/items"][0]
     assert envio[2]["json"]["uris"] == ["spotify:track:abc123"]
+
+
+# -- cambios de la API de febrero de 2026 -----------------------------------
+def test_una_cancion_puede_venir_en_item_en_vez_de_en_track():
+    # /me/tracks la trae en `track`; /playlists/{id}/items, en `item`.
+    de_playlist = {"item": {"id": "abc", "name": "Cancion", "type": "track",
+                            "artists": [{"name": "Alguien"}],
+                            "album": {"name": "D", "release_date": "2020"}},
+                   "added_at": "2024-01-01T00:00:00Z"}
+    t = _normalize(de_playlist, "playlist:1")
+    assert t["id"] == "abc" and t["name"] == "Cancion"
+
+
+def test_las_canciones_de_una_playlist_se_leen_de_items(monkeypatch):
+    client, fake = _client(monkeypatch)
+    monkeypatch.setattr(client, "_paginate", lambda path, params=None: iter([]))
+    llamadas = []
+    monkeypatch.setattr(client, "_paginate",
+                        lambda path, params=None: llamadas.append(path) or iter([]))
+    client.playlist_tracks("pl9")
+    assert llamadas == ["/playlists/pl9/items"]
+
+
+def test_el_total_de_una_playlist_se_lee_de_items(monkeypatch):
+    # `tracks` sigue presente pero a null; el recuento vive ahora en `items`.
+    client, _ = _client(monkeypatch)
+    cruda = [{"id": "p1", "name": "Una", "tracks": None,
+              "items": {"total": 41}, "owner": {"display_name": "yo"}}]
+    monkeypatch.setattr(client, "_paginate", lambda path, params=None: iter(cruda))
+    assert client.playlists()[0]["total"] == 41

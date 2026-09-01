@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const show = (el, visible) => el.classList.toggle("hidden", !visible);
 let current = null;
 
 async function api(path, options = {}) {
@@ -16,33 +17,55 @@ function setBusy(el, busy, label) {
   if (label) el.textContent = label;
 }
 
+/* ---------------- sesión ---------------- */
+function setLoggedOut(mensaje) {
+  show($("landing"), true);
+  document.querySelectorAll(".landing-only").forEach((el) => show(el, true));
+  show($("login"), true);
+  show($("logout"), false);
+  show($("whoami"), false);
+  for (const id of ["setup", "generator", "results"]) show($(id), false);
+  $("status").innerHTML = mensaje;
+}
+
 async function refreshStatus() {
   const s = await api("/api/status");
+
   if (!s.configured) {
-    $("status").innerHTML = "Falta <code>SPOTIFY_CLIENT_ID</code> en tu <code>.env</code>.";
+    setLoggedOut(
+      "Falta <code>SPOTIFY_CLIENT_ID</code> en tu <code>.env</code>. " +
+        "Mira los pasos de aquí abajo."
+    );
     return;
   }
   if (!s.connected) {
-    $("status").innerHTML = '<a href="/api/auth/login">Conectar con Spotify →</a>';
+    setLoggedOut("Listo para conectar. Se abrirá Spotify para que autorices el acceso.");
     return;
   }
-  // El nombre viene de Spotify, asi que no se mete por innerHTML.
-  const status = $("status");
-  status.textContent = `Conectado como ${s.user} · modelo ${s.model} · `;
-  const fm = document.createElement("span");
-  if (s.lastfm) {
-    fm.textContent = "Last.fm activo";
-  } else {
-    fm.innerHTML =
-      "sin Last.fm — a\u00f1ade <code>LASTFM_API_KEY</code> al .env para afinar el cat\u00e1logo que el modelo no conoce";
-  }
-  status.append(fm);
-  $("setup").classList.remove("hidden");
-  $("generator").classList.remove("hidden");
+
+  // Conectado: la landing estorba, se muestra la aplicación.
+  show($("landing"), false);
+  document.querySelectorAll(".landing-only").forEach((el) => show(el, false));
+  show($("login"), false);
+  show($("logout"), true);
+  show($("whoami"), true);
+  $("whoami").textContent = s.user;
+  show($("setup"), true);
+  show($("generator"), true);
+
+  const fm = s.lastfm ? "Last.fm activo" : "sin Last.fm";
+  $("status").textContent = `Conectado · modelo ${s.model} · ${fm}`;
+
   await loadPlaylists();
   await refreshStats();
 }
 
+$("logout").addEventListener("click", async () => {
+  await api("/api/auth/logout", { method: "POST" });
+  location.href = "/";
+});
+
+/* ---------------- biblioteca ---------------- */
 async function loadPlaylists() {
   const select = $("source");
   if (select.options.length > 1) return;
@@ -67,25 +90,28 @@ async function refreshStats() {
   const job = s.job || {};
   const mine = job.source === $("source").value;
   const active = job.running && mine;
-  $("progress").classList.toggle("hidden", !active);
+  show($("progress"), active);
   if (active && job.total) {
-    // El lote en curso aun no cuenta, asi que la barra se queda quieta
+    // El lote en curso aún no cuenta, así que la barra se queda quieta
     // mientras se espera al modelo: el rayado indica que sigue vivo.
     $("bar").style.width = `${Math.round((job.done / job.total) * 100)}%`;
     $("bar").classList.add("working");
     $("progtext").textContent =
       `Lote ${job.batch + 1} de ${job.batches} · ${job.done} de ${job.total} canciones analizadas`;
     setTimeout(refreshStats, 2500);
+  } else {
+    $("progtext").textContent = "";
   }
 
   const donemsg = !job.running && mine && job.finished && job.done;
-  $("tagdone").classList.toggle("hidden", !donemsg);
+  show($("tagdone"), Boolean(donemsg));
   if (donemsg) {
     $("tagdone").textContent =
-      `Listo: ${job.done} canciones analizadas. Ya puedes describir un momento aqui debajo.`;
+      `Listo: ${job.done} canciones analizadas. Ya puedes describir un momento aquí debajo.`;
   }
+
   $("taberror").textContent = job.error || "";
-  $("taberror").classList.toggle("hidden", !job.error);
+  show($("taberror"), Boolean(job.error));
   return s;
 }
 
@@ -108,8 +134,8 @@ $("sync").addEventListener("click", async (e) => {
 
 $("tag").addEventListener("click", async (e) => {
   setBusy(e.target, true, "Lanzando…");
-  $("taberror").classList.add("hidden");
-  $("tagdone").classList.add("hidden");
+  show($("taberror"), false);
+  show($("tagdone"), false);
   try {
     const r = await api("/api/tag", {
       method: "POST",
@@ -127,6 +153,7 @@ $("tag").addEventListener("click", async (e) => {
   }
 });
 
+/* ---------------- generación ---------------- */
 $("generate").addEventListener("click", async (e) => {
   const prompt = $("prompt").value.trim();
   if (!prompt) return;
@@ -145,6 +172,7 @@ $("generate").addEventListener("click", async (e) => {
     });
     current.limit = limit;
     current.limitPedido = limit;
+    $("plname").value = "";
     render(current);
   } catch (err) {
     alert(err.message);
@@ -154,40 +182,46 @@ $("generate").addEventListener("click", async (e) => {
 });
 
 function render(result) {
-  $("results").classList.remove("hidden");
+  show($("results"), true);
   $("saved").textContent = "";
-  $("reslabel").textContent = result.query.label || "Seleccion";
+  $("reslabel").textContent = result.query.label || "Selección";
   $("notes").textContent =
-    `${result.tracks.length} de ${result.pool} analizadas · nota minima ${result.min_score}`
+    `${result.tracks.length} de ${result.pool} analizadas · nota mínima ${result.min_score}`
     + ` · ${result.query.notes}`;
   // No se pisa un nombre que ya haya escrito el usuario al ampliar la lista.
   if (!$("plname").value) $("plname").value = result.query.label || "";
-  $("more").classList.toggle("hidden", result.min_score <= 0
-    && result.tracks.length < result.limitPedido);
 
   $("tracks").innerHTML = "";
   for (const t of result.tracks) {
     const li = document.createElement("li");
+
+    const info = document.createElement("div");
     const title = document.createElement("div");
+    title.className = "track-title";
     title.textContent = `${t.artists.join(", ")} — ${t.name}`;
-    const score = document.createElement("span");
-    score.className = "score";
-    score.textContent = t.score;
-    title.prepend(score);
     const meta = document.createElement("div");
     meta.className = "meta";
     meta.textContent = [t.year, t.descriptors.join(" · ")].filter(Boolean).join(" · ");
-    li.append(title, meta);
+    info.append(title, meta);
+
+    const score = document.createElement("span");
+    score.className = "score";
+    score.textContent = t.score;
+
+    li.append(info, score);
     $("tracks").append(li);
   }
+
+  show($("more"), !(result.min_score <= 0 && result.tracks.length < result.limitPedido));
   if (!result.tracks.length) {
-    $("notes").textContent += " — nada supero la nota minima, prueba a bajarla.";
+    $("notes").textContent += " — nada superó la nota mínima. Prueba a bajarla o a añadir más.";
   }
+  $("results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-// Con una biblioteca sesgada -toda musica de baile, por ejemplo- una peticion
-// muy alejada de su centro deja casi todo por debajo de la nota minima. En vez
-// de dejar al usuario ajustando el numero a mano, se baja el liston por pasos.
+// Con una biblioteca sesgada -toda música de baile, por ejemplo- una petición
+// muy alejada de su centro deja casi todo por debajo de la nota mínima. En vez
+// de dejar al usuario ajustando el número a mano, se baja el listón por pasos.
 $("more").addEventListener("click", async (e) => {
   if (!current) return;
   setBusy(e.target, true, "Buscando…");
@@ -210,16 +244,16 @@ $("more").addEventListener("click", async (e) => {
     current = { ...r, limit: nextLimit, limitPedido: nextLimit };
     render(current);
     if (current.tracks.length === antes) {
-      $("notes").textContent +=
-        " — no hay mas canciones que encajen en tu biblioteca.";
+      $("notes").textContent += " — no hay más canciones que encajen en tu biblioteca.";
     }
   } catch (err) {
     alert(err.message);
   } finally {
-    setBusy(e.target, false, "Anadir 10 mas");
+    setBusy(e.target, false, "Añadir 10 más");
   }
 });
 
+/* ---------------- guardar ---------------- */
 $("save").addEventListener("click", async (e) => {
   if (!current || !current.tracks.length) return;
   setBusy(e.target, true, "Guardando…");
@@ -232,7 +266,8 @@ $("save").addEventListener("click", async (e) => {
         track_ids: current.tracks.map((t) => t.id),
       }),
     });
-    $("saved").innerHTML = `Guardada: <a href="${r.url}" target="_blank" rel="noopener">abrir en Spotify</a>`;
+    $("saved").innerHTML =
+      `Guardada con ${r.added} canciones · <a href="${r.url}" target="_blank" rel="noopener">abrir en Spotify</a>`;
   } catch (err) {
     alert(err.message);
   } finally {

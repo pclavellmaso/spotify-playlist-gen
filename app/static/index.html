@@ -7,23 +7,63 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<main>
-  <header>
-    <h1>Playlists por momento</h1>
-    <p class="sub">Describe un momento y saca las canciones de tu biblioteca que encajan.</p>
-    <div id="status" class="status">Comprobando conexion…</div>
-  </header>
 
-  <section id="setup" class="card hidden">
-    <h2>1 · Tu biblioteca</h2>
-    <label for="source">Origen</label>
-    <select id="source"><option value="liked">Canciones que te gustan</option></select>
-    <div class="row">
-      <label>Analizar como max. <input id="taglimit" type="number" value="50" min="1" max="5000"></label>
-      <button id="sync" class="secondary">Sincronizar</button>
-      <button id="tag" class="secondary">Analizar pendientes</button>
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark"></span>
+    Playlists por momento
+  </a>
+  <nav class="topnav">
+    <a href="#como" class="navlink landing-only">Cómo funciona</a>
+    <a href="#local" class="navlink landing-only">Montarlo en local</a>
+    <span id="whoami" class="whoami hidden"></span>
+    <button id="logout" class="btn btn-ghost btn-sm hidden">Cerrar sesión</button>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="wrap hero-inner">
+    <p class="eyebrow">Corre en tu máquina · Tu biblioteca no sale de aquí</p>
+    <h1>Describe el momento.<br>La playlist sale de <em>tu</em> biblioteca.</h1>
+    <p class="lead">
+      <span class="quote">«momento calma en la piscina haciendo cervecita»</span>
+      y de tus canciones guardadas salen las que encajan, ordenadas en curva de
+      energía y listas para guardar en Spotify. No te recomienda música que no
+      conoces: filtra la que ya te gusta.
+    </p>
+    <div class="hero-actions">
+      <a id="login" class="btn btn-primary" href="/api/auth/login">Iniciar sesión con Spotify</a>
+      <a href="#local" class="btn btn-ghost landing-only">Montarlo en local</a>
     </div>
-    <p class="hint">Empieza con pocas: comprueba que los perfiles tienen sentido antes de pagar el barrido completo.</p>
+    <p id="status" class="status">Comprobando conexión…</p>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <!-- ================= APLICACIÓN ================= -->
+  <section id="setup" class="card hidden">
+    <div class="card-head">
+      <span class="step-num">01</span>
+      <h2>Tu biblioteca</h2>
+    </div>
+    <div class="field">
+      <label for="source">Origen</label>
+      <select id="source"><option value="liked">Canciones que te gustan</option></select>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="taglimit">Analizar como máx.</label>
+        <input id="taglimit" type="number" value="50" min="1" max="5000">
+      </div>
+      <button id="sync" class="btn btn-ghost">Sincronizar</button>
+      <button id="tag" class="btn btn-ghost">Analizar pendientes</button>
+    </div>
+    <p class="hint">
+      Empieza con pocas: comprueba que los perfiles tienen sentido antes de pagar
+      el barrido completo.
+    </p>
     <div id="progress" class="progress hidden"><div id="bar"></div></div>
     <p id="progtext" class="hint"></p>
     <p id="libstats" class="hint"></p>
@@ -32,31 +72,205 @@
   </section>
 
   <section id="generator" class="card hidden">
-    <h2>2 · El momento</h2>
-    <textarea id="prompt" rows="3"
-      placeholder="momento calma en la piscina haciendo cervecita"></textarea>
-    <div class="row">
-      <label>Canciones <input id="limit" type="number" value="30" min="1" max="100"></label>
-      <label>Nota minima <input id="minscore" type="number" value="55" min="0" max="100"></label>
-      <label>Max por artista <input id="maxartist" type="number" value="2" min="1" max="10"></label>
+    <div class="card-head">
+      <span class="step-num">02</span>
+      <h2>El momento</h2>
     </div>
-    <button id="generate">Generar</button>
+    <div class="field">
+      <textarea id="prompt" rows="3"
+        placeholder="momento calma en la piscina haciendo cervecita"></textarea>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="limit">Canciones</label>
+        <input id="limit" type="number" value="30" min="1" max="100">
+      </div>
+      <div class="field">
+        <label for="minscore">Nota mínima</label>
+        <input id="minscore" type="number" value="55" min="0" max="100">
+      </div>
+      <div class="field">
+        <label for="maxartist">Máx. por artista</label>
+        <input id="maxartist" type="number" value="2" min="1" max="10">
+      </div>
+      <button id="generate" class="btn btn-primary">Generar</button>
+    </div>
   </section>
 
   <section id="results" class="card hidden">
-    <h2 id="reslabel"></h2>
+    <div class="card-head">
+      <span class="step-num">03</span>
+      <h2 id="reslabel"></h2>
+    </div>
     <p id="notes" class="hint"></p>
     <ol id="tracks"></ol>
     <div class="row">
-      <button id="more" class="secondary">Anadir 10 mas</button>
+      <button id="more" class="btn btn-ghost">Añadir 10 más</button>
     </div>
-    <div class="row">
-      <input id="plname" placeholder="Nombre de la playlist">
-      <button id="save">Guardar en Spotify</button>
+    <div class="row save-row">
+      <div class="field">
+        <label for="plname">Nombre de la playlist</label>
+        <input id="plname" placeholder="Cervecita al sol">
+      </div>
+      <button id="save" class="btn btn-primary">Guardar en Spotify</button>
     </div>
-    <p id="saved" class="hint"></p>
+    <p id="saved" class="ok"></p>
   </section>
+
+  <!-- ================= LANDING ================= -->
+  <div id="landing">
+
+    <section id="como" class="band">
+      <p class="eyebrow">Cómo funciona</p>
+      <h2 class="band-title">Tres pasos, y el segundo solo se paga una vez</h2>
+      <div class="steps">
+        <article class="step">
+          <span class="step-num">01</span>
+          <h3>Sincroniza</h3>
+          <p>
+            Se baja tu biblioteca de Spotify a una base SQLite local: título,
+            artista, álbum y año. Nada más, y nada sale de tu ordenador.
+          </p>
+        </article>
+        <article class="step">
+          <span class="step-num">02</span>
+          <h3>Analiza</h3>
+          <p>
+            Claude perfila cada canción en siete ejes —energía, luminosidad,
+            cuánto invita a bailar…— apoyándose en los tags de comunidad de
+            Last.fm. El resultado se guarda: cada canción se analiza
+            <strong>una sola vez</strong>.
+          </p>
+        </article>
+        <article class="step">
+          <span class="step-num">03</span>
+          <h3>Describe</h3>
+          <p>
+            Escribes el momento en lenguaje normal. Se traduce al mismo espacio
+            de siete ejes y se compara con aritmética, sin IA: barato,
+            determinista y con tests.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band band-split">
+      <div>
+        <p class="eyebrow">Qué necesitas</p>
+        <h2 class="band-title">Tres cuentas, dos de ellas gratis</h2>
+      </div>
+      <ul class="reqs">
+        <li>
+          <span class="req-tag req-need">Obligatorio</span>
+          <h3>Spotify Premium</h3>
+          <p>
+            Desde marzo de 2026, quien registra la aplicación tiene que ser
+            Premium. Sin eso, Spotify deniega la creación de playlists.
+          </p>
+        </li>
+        <li>
+          <span class="req-tag req-need">Obligatorio</span>
+          <h3>Una IA con API</h3>
+          <p>
+            Por defecto Claude, con saldo en la consola de Anthropic. Es lo que
+            perfila tu música. El modelo se cambia con una variable de entorno,
+            así que mañana puede ser otro.
+          </p>
+        </li>
+        <li>
+          <span class="req-tag req-opt">Opcional</span>
+          <h3>Last.fm</h3>
+          <p>
+            Clave gratuita. Aporta los tags de la comunidad, que es lo que
+            salva el catálogo que el modelo no conoce. Sin ella funciona igual,
+            solo que peor con música de sello pequeño.
+          </p>
+        </li>
+      </ul>
+    </section>
+
+    <section id="local" class="band">
+      <p class="eyebrow">Montarlo en local</p>
+      <h2 class="band-title">Cuatro pasos desde cero</h2>
+
+      <ol class="setup-list">
+        <li>
+          <h3>Clona e instala</h3>
+          <pre><code>git clone https://github.com/pclavellmaso/spotify-playlist-gen
+cd spotify-playlist-gen
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python -r requirements.txt</code></pre>
+          <p class="note">
+            Sirve cualquier Python 3.10 o superior. Se usa <code>uv</code> porque
+            en macOS 26 el Python de Homebrew viene roto.
+          </p>
+        </li>
+        <li>
+          <h3>Registra la aplicación en Spotify</h3>
+          <p>
+            En <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>,
+            crea una app, marca <strong>Web API</strong> y añade como Redirect URI
+            exactamente esto:
+          </p>
+          <pre><code>http://127.0.0.1:8000/api/auth/callback</code></pre>
+          <p class="note">
+            Tiene que ser <code>127.0.0.1</code>. Spotify ya no acepta
+            <code>localhost</code>, y si no coincide carácter por carácter el
+            login falla. Añade también tu cuenta en <em>User Management</em>.
+          </p>
+        </li>
+        <li>
+          <h3>Pon las claves</h3>
+          <pre><code>cp .env.example .env</code></pre>
+          <p>
+            Dentro van el <strong>Client ID</strong> de la app de Spotify (el
+            secret no hace falta, se usa PKCE), tu clave de Anthropic y, si
+            quieres, la de Last.fm.
+          </p>
+        </li>
+        <li>
+          <h3>Arranca</h3>
+          <pre><code>./.venv/bin/python run.py</code></pre>
+          <p>
+            Se abre en <code>http://127.0.0.1:8000</code>. Inicia sesión,
+            sincroniza, analiza unas cincuenta canciones para ver qué tal salen
+            los perfiles, y a partir de ahí describe momentos.
+          </p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="band band-note">
+      <p class="eyebrow">Conviene saberlo</p>
+      <h2 class="band-title">Esto no puede ser un producto público hoy</h2>
+      <div class="cols">
+        <p>
+          Spotify limita las aplicaciones nuevas a <strong>cinco usuarios de
+          prueba</strong>. Salir de ahí exige empresa registrada y 250.000
+          usuarios activos al mes. Como herramienta personal —tú y cuatro
+          personas más— funciona perfectamente; como producto abierto, no es
+          viable. Por eso vive en tu máquina.
+        </p>
+        <p>
+          Además, Spotify retiró en 2024 los datos acústicos que hacían fácil
+          esto. El perfil de cada canción es una <strong>estimación</strong> del
+          modelo, no una medición, y por eso lleva un nivel de confianza: cuando
+          no reconoce un tema, su perfil pesa menos en vez de decidir por su
+          cuenta.
+        </p>
+      </div>
+    </section>
+
+  </div>
 </main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <span>Todo corre en local. Tu token de Spotify se queda en tu disco.</span>
+    <a href="https://github.com/pclavellmaso/spotify-playlist-gen" target="_blank" rel="noopener">Código en GitHub</a>
+  </div>
+</footer>
+
 <script src="/static/app.js"></script>
 </body>
 </html>
