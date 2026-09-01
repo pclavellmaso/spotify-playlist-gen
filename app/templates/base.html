@@ -25,6 +25,10 @@
 {%- endmacro %}
 
 <header class="chrome">
+  {# El menu movil es un checkbox: la web publica no lleva JavaScript, asi que
+     tiene que abrirse sin el. #}
+  <input type="checkbox" id="navtoggle" class="navtoggle">
+
   <div class="pill pill-nav">
     <a class="brand" href="/">
       {{ marca() }}
@@ -32,9 +36,14 @@
     </a>
     <nav class="links">
       <a href="/metodo" class="{{ 'on' if page == 'metodo' }}">Cómo funciona</a>
+      <a href="/ejemplos" class="{{ 'on' if page == 'demos' }}">Ejemplos</a>
       <a href="/guia" class="{{ 'on' if page == 'guia' }}">Guía</a>
       {% if not estatico %}<a href="/ajustes" class="{{ 'on' if page == 'ajustes' }}">Ajustes</a>{% endif %}
     </nav>
+
+    <label for="navtoggle" class="burger" role="button" tabindex="0" aria-label="Menú">
+      <span></span><span></span><span></span>
+    </label>
   </div>
 
   {% if estatico %}
@@ -73,6 +82,7 @@
           <h4>Producto</h4>
           <a href="/">Presentación</a>
           <a href="/metodo">Cómo funciona</a>
+          <a href="/ejemplos">Ejemplos</a>
           {% if not estatico %}<a href="/app">La aplicación</a>{% endif %}
         </div>
         <div>

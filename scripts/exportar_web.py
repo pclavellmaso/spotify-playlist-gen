@@ -23,7 +23,8 @@ sys.path.insert(0, str(RAIZ))
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
 
 SALIDA = RAIZ / "docs"
-PAGINAS = {"index.html": "inicio", "metodo.html": "metodo", "guia.html": "guia"}
+PAGINAS = {"index.html": "inicio", "metodo.html": "metodo",
+           "demos.html": "demos", "guia.html": "guia"}
 REPO = "https://github.com/pclavellmaso/spotify-playlist-gen"
 
 # GitHub Pages sirve bajo /<repo>/, asi que las rutas absolutas no valen. Y las
@@ -34,6 +35,7 @@ RUTAS = [
     (r'src="/static/', 'src="static/'),
     (r'href="/metodo"', 'href="metodo.html"'),
     (r'href="/metodo#', 'href="metodo.html#'),
+    (r'href="/ejemplos"', 'href="demos.html"'),
     (r'href="/guia"', 'href="guia.html"'),
     (r'href="/guia#', 'href="guia.html#'),
     (r'href="/app"', 'href="guia.html"'),

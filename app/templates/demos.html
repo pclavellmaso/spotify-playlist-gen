@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Ejemplos — Compás{% endblock %}
+{% block description %}Peticiones reales y las listas que devolvieron, sobre una biblioteca de 1.788 canciones.{% endblock %}
+
+{% macro tema(nota, artistas, titulo, meta, nueva=False) -%}
+<li{% if nueva %} class="nueva"{% endif %}>
+  <div>
+    <div class="track-title">{{ artistas }} — {{ titulo }}</div>
+    <div class="track-meta">{{ meta }}</div>
+  </div>
+  <span class="score">{{ nota }}</span>
+</li>
+{%- endmacro %}
+
+{% macro ejes(pares) -%}
+<div class="axes">
+  {% for nombre, valor in pares %}<span class="axis">{{ nombre }} <b>{{ valor }}</b></span>{% endfor %}
+</div>
+{%- endmacro %}
+
+{% block body %}
+<section class="pagehead">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <p class="eyebrow">Ejemplos</p>
+    <h1 class="display sm">Cuatro peticiones y lo que devolvieron</h1>
+    <p class="lead">
+      Resultados reales sobre una biblioteca concreta de 1.788 canciones. Las
+      notas y los valores son los que salieron; con otra biblioteca saldría otra
+      cosa, porque Compás sólo trabaja con lo que ya tienes.
+    </p>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap ejemplos">
+
+    <article class="ejemplo">
+      <div class="msg msg-you"><div class="bubble">sobremesa que se alarga más de la cuenta</div></div>
+      <div class="msg msg-bot">
+        <span class="avatar">{{ marca() }}</span>
+        <div class="bubble">
+          Mesa recogida a medias y nadie con prisa por levantarse: cálida,
+          orgánica y con el ritmo justo para acompañar la charla.
+          {{ ejes([('energía', 35), ('luminosidad', 65), ('baile', 40), ('acústico', 60), ('tempo', 35), ('calidez', 80)]) }}
+        </div>
+      </div>
+      <p class="ejemplo-meta">30 canciones · 121 min · exigencia 55</p>
+      <ol class="tracks">
+        {{ tema('82.46', "Mo' Horizons, Sparrow &amp; Barbossa", 'Quando Te Veo', '2021 · brasileña · cálida · relajada') }}
+        {{ tema('81.46', 'Guru, Donald Byrd', "Loungin'", '1993 · jazzy · relajada · nocturna') }}
+        {{ tema('78.19', 'Sola Rosa, Iva Lamkum', 'Turn Around', '2009 · dub · cálida · soul') }}
+        {{ tema('71.46', 'Jack Johnson, Hermanos Gutiérrez', 'Hold On To The Light', '2025 · acústica · serena · luminosa') }}
+        {{ tema('69.92', 'Morcheeba', 'World Looking In', '2000 · trip-hop · suave · nostálgica') }}
+      </ol>
+    </article>
+
+    <article class="ejemplo">
+      <div class="msg msg-you"><div class="bubble">lluvia contra la ventana y ninguna prisa</div></div>
+      <div class="msg msg-bot">
+        <span class="avatar">{{ marca() }}</span>
+        <div class="bubble">
+          Tarde de interior con la luz apagada: tempo bajo, ánimo agridulce y
+          texturas acústicas que acompañan sin pedir atención.
+          {{ ejes([('energía', 30), ('luminosidad', 45), ('acústico', 70), ('tempo', 28), ('voz', 60), ('calidez', 75)]) }}
+        </div>
+      </div>
+      <p class="ejemplo-meta">30 canciones · 115 min · exigencia 55</p>
+      <ol class="tracks">
+        {{ tema('78.67', 'Kings of Convenience, Feist', 'Know How', '2004 · acústica · susurrada · íntima') }}
+        {{ tema('76.59', 'Michael Jackson', 'Stranger in Moscow', '1995 · melancólica · fría · desolada') }}
+        {{ tema('76.02', 'Kings of Convenience', 'Singing Softly To Me', '2001 · susurrada · serena · melancólica') }}
+        {{ tema('74.53', 'Zaz', 'Imagine', '2021 · íntima · acústica · emotiva') }}
+        {{ tema('65.12', 'Billie Eilish', 'Billie Bossa Nova', '2021 · bossa · susurrada · suave') }}
+      </ol>
+    </article>
+
+    <article class="ejemplo">
+      <div class="msg msg-you"><div class="bubble">bajando revoluciones antes de dormir</div></div>
+      <div class="msg msg-bot">
+        <span class="avatar">{{ marca() }}</span>
+        <div class="bubble">
+          Se apaga poco a poco: casi nada de energía, instrumentación orgánica y
+          voces al fondo. Pedida con curva descendente y media hora de duración.
+          {{ ejes([('energía', 15), ('baile', 20), ('acústico', 70), ('tempo', 20), ('voz', 30), ('calidez', 75)]) }}
+        </div>
+      </div>
+      <p class="ejemplo-meta">8 canciones · 33 min · curva descendente</p>
+      <ol class="tracks">
+        {{ tema('73.43', 'George Shearing', 'Guilty', '1992 · jazz · pausada · íntima') }}
+        {{ tema('68.72', 'Johann Pachelbel', 'Canon and Gigue in D', '1985 · clásica · serena · instrumental') }}
+        {{ tema('68.98', 'Daas', 'Radar', '2022 · ambiental · nocturna · suave') }}
+        {{ tema('64.03', 'Danit', 'Cuatro Vientos', '2019 · orgánica · ritual · cálida') }}
+        {{ tema('61.80', 'Hermanos Gutiérrez', 'Mi Amor', '2017 · desértica · instrumental · reverberante') }}
+      </ol>
+      <p class="ejemplo-nota">
+        Ninguna de estas ocho es música de baile, y la biblioteca es casi toda
+        electrónica. Cuando no hay material para un momento, Compás devuelve
+        poco en vez de rellenar.
+      </p>
+    </article>
+
+    <article class="ejemplo">
+      <div class="msg msg-you"><div class="bubble">sobremesa que se alarga · explorando fuera de la biblioteca</div></div>
+      <div class="msg msg-bot">
+        <span class="avatar">{{ marca() }}</span>
+        <div class="bubble">
+          Partiendo de los artistas que ya habían encajado, se miraron 40 temas
+          que no estaban en la biblioteca. Quince superaron la misma nota.
+        </div>
+      </div>
+      <p class="ejemplo-meta">40 candidatos · 15 aprobados · 93 segundos</p>
+      <ol class="tracks">
+        {{ tema('74.45', 'The Funky Lowlives', 'Irreplaceable', '2005 · jazzy · groovy · cálida', nueva=True) }}
+        {{ tema('73.54', 'Club des Belugas, Anna Luca', 'The Road Is Lonesome', '2011 · latina · vocal · nostálgica', nueva=True) }}
+        {{ tema('71.34', "The Mighty Bop", 'Life', '1997 · acidjazz · groovy · fluida', nueva=True) }}
+        {{ tema('66.98', 'The Juju Orchestra', 'This Is Not A Tango', '2007 · retro · sofisticada · latina', nueva=True) }}
+        {{ tema('65.40', "Mo' Horizons", 'Remember Tomorrow', '2003 · jazzy · nocturna · cálida', nueva=True) }}
+      </ol>
+      <p class="ejemplo-nota">
+        Spotify retiró sus recomendaciones en 2024, así que los parecidos salen
+        del grafo de Last.fm y se puntúan con el mismo criterio: no entran por
+        ser novedad, entran por encajar.
+      </p>
+    </article>
+
+  </div>
+</section>
+
+<section class="band band-cta">
+  <div class="wrap cta-inner">
+    <div>
+      <h2 class="band-title">Con tu biblioteca saldrá otra cosa</h2>
+      <p class="band-lead">
+        Y esa es la gracia. Cada uno lo instala en su equipo, con sus claves y
+        su consumo.
+      </p>
+    </div>
+    <a href="/guia" class="btn btn-primary btn-lg">Ver la guía</a>
+  </div>
+</section>
+{% endblock %}
