@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "iconos.html" as ico %}
 {% block title %}Compás{% endblock %}
 
 {% block body %}
@@ -13,7 +14,7 @@
         Compás necesita permiso para leer tu biblioteca y crear listas en tu
         cuenta. Nada más, y nada sale de este equipo.
       </p>
-      <a id="gate-login" class="btn btn-primary btn-lg" href="/api/auth/login">Entrar con Spotify</a>
+      <a id="gate-login" class="btn btn-primary btn-lg" href="/api/auth/login">{{ ico.spotify() }}Entrar con Spotify</a>
       <p class="gate-note">
         ¿Todavía no lo has configurado? <a href="/guia">Sigue la guía</a>.
       </p>
@@ -103,10 +104,19 @@
       <p id="rv-notes" class="rv-notes"></p>
       <ol id="tracks" class="tracks"></ol>
       <div class="rv-actions">
-        <button id="more" class="btn btn-flat" type="button">Ampliar la búsqueda</button>
+        <div class="field rv-field">
+          <label for="morecount">Buscar más</label>
+          <div class="rv-inline">
+            <input id="morecount" type="number" value="10" min="1" max="50">
+            <button id="more" class="btn btn-flat" type="button">Ampliar</button>
+          </div>
+        </div>
         <span class="rv-spacer"></span>
-        <input id="plname" class="rv-name-input" placeholder="Nombre de la playlist">
-        <button id="save" class="btn btn-primary" type="button">Crear en Spotify</button>
+        <div class="field rv-field" id="namefield">
+          <label for="plname">Nombre de la playlist</label>
+          <input id="plname" placeholder="Sin título">
+        </div>
+        <button id="save" class="btn btn-primary" type="button">{{ ico.spotify() }}Crear</button>
         <button id="append" class="btn btn-primary hidden" type="button">Añadir</button>
       </div>
       <p id="saved" class="ok"></p>

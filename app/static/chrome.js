@@ -18,6 +18,9 @@ window.CompasChrome = (async () => {
   // En la propia aplicación el atajo sobra.
   show($("openapp"), dentro && location.pathname !== "/app");
   if (dentro) $("whoami").textContent = estado.user || "";
+  // Sin sesion la pastilla solo contiene el boton: su borde haria un doble marco.
+  const pastilla = $("sessionpill");
+  if (pastilla) pastilla.classList.toggle("pill-naked", !dentro);
 
   const logout = $("logout");
   if (logout) {

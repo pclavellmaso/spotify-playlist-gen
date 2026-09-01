@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Método — Compás{% endblock %}
+{% import "iconos.html" as ico %}
+{% block title %}Cómo funciona — Compás{% endblock %}
 
 {% block body %}
 <section class="pagehead">
   <div class="hero-glow" aria-hidden="true"></div>
   <div class="wrap">
-    <p class="eyebrow">Método</p>
-    <h1 class="display sm">Cómo se decide que una canción encaja</h1>
+    <p class="eyebrow">Cómo funciona</p>
+    <h1 class="display sm">De una frase suelta a una playlist</h1>
     <p class="lead">
-      Todo el sistema se apoya en un espacio fijo de siete ejes. Fijarlo tiene
-      dos ventajas: el emparejado es aritmética barata y reproducible, y el
-      modelo no puede inventarse dimensiones nuevas entre lote y lote.
+      Cada canción se coloca en siete ejes numéricos. Tu petición se traduce a
+      esos mismos siete ejes. A partir de ahí, elegir es aritmética.
     </p>
   </div>
 </section>
@@ -21,29 +21,22 @@
       <article class="step">
         <span class="step-num">01</span>
         <h3>Indexación</h3>
-        <p>
-          Tu catálogo baja a una base local: título, artista, álbum y año. Se
-          descartan podcasts, ficheros locales y temas retirados del catálogo,
-          que conservan identificador pero vuelven sin metadatos.
-        </p>
+        <p>Tu catálogo baja a una base local: título, artista, álbum y año.</p>
       </article>
       <article class="step">
         <span class="step-num">02</span>
         <h3>Perfilado</h3>
         <p>
-          Un modelo de lenguaje sitúa cada tema en los siete ejes, apoyándose en
-          los tags que la comunidad de Last.fm ha escrito sobre el artista y el
-          disco. Se procesa en lotes de cuarenta con el prefijo del prompt
-          cacheado, y el resultado se guarda para siempre.
+          Un modelo sitúa cada tema en los siete ejes, ayudado por los tags de
+          Last.fm. Se hace una vez y se guarda.
         </p>
       </article>
       <article class="step">
         <span class="step-num">03</span>
         <h3>Emparejado</h3>
         <p>
-          Tu petición se traduce a esos mismos ejes y se compara sin modelo de
-          por medio. La misma frase sobre la misma biblioteca da siempre el mismo
-          resultado.
+          Tu frase se compara con esos perfiles sin modelo de por medio: mismo
+          resultado siempre.
         </p>
       </article>
     </div>
@@ -54,67 +47,57 @@
   <div class="wrap">
     <p class="eyebrow">El espacio</p>
     <h2 class="band-title">Siete ejes, de cero a cien</h2>
-    <div class="axes-table">
-      <div class="axis-row"><b>Energía</b><span>De casi parada a máxima intensidad.</span></div>
-      <div class="axis-row"><b>Luminosidad</b><span>De oscura o tensa a alegre y abierta.</span></div>
-      <div class="axis-row"><b>Baile</b><span>Cuánto invita a moverse, al margen de la velocidad.</span></div>
-      <div class="axis-row"><b>Acústico</b><span>De producción enteramente electrónica a instrumentación orgánica.</span></div>
-      <div class="axis-row"><b>Tempo</b><span>La velocidad <em>percibida</em>. Una balada a 140 pulsaciones se percibe lenta.</span></div>
-      <div class="axis-row"><b>Voz</b><span>De instrumental a la voz como centro absoluto.</span></div>
-      <div class="axis-row"><b>Calidez</b><span>De fría y metálica a cálida y envolvente.</span></div>
+    <div class="ejes">
+      <article class="eje">{{ ico.eje('energia') }}<div><b>Energía</b><span>De casi parada a máxima intensidad.</span></div></article>
+      <article class="eje">{{ ico.eje('luminosidad') }}<div><b>Luminosidad</b><span>De oscura o tensa a alegre y abierta.</span></div></article>
+      <article class="eje">{{ ico.eje('baile') }}<div><b>Baile</b><span>Cuánto invita a moverse.</span></div></article>
+      <article class="eje">{{ ico.eje('acustico') }}<div><b>Acústico</b><span>De electrónica a instrumentación orgánica.</span></div></article>
+      <article class="eje">{{ ico.eje('tempo') }}<div><b>Tempo</b><span>La velocidad <em>percibida</em>, no las pulsaciones.</span></div></article>
+      <article class="eje">{{ ico.eje('voz') }}<div><b>Voz</b><span>De instrumental a la voz como centro.</span></div></article>
+      <article class="eje">{{ ico.eje('calidez') }}<div><b>Calidez</b><span>De fría y metálica a cálida y envolvente.</span></div></article>
     </div>
-    <p class="band-lead mt">
-      A eso se añaden hasta dos contextos de un vocabulario cerrado —piscina de
-      verano, after hours, concentración, entrenamiento, dormir…— y unos pocos
-      adjetivos libres. El tope de dos es deliberado: cuando el etiquetado
-      repartía tres o cuatro por tema, la mitad del catálogo acababa marcado como
-      «fiesta» y la etiqueta dejaba de distinguir nada.
-    </p>
   </div>
 </section>
 
 <section class="band">
   <div class="wrap">
     <p class="eyebrow">La nota</p>
-    <h2 class="band-title">Por qué una canción entra o se queda fuera</h2>
+    <h2 class="band-title">Cómo se decide qué entra</h2>
+    <p class="band-lead">
+      Cada canción recibe una nota. Se compone de tres cosas, y una cuarta la
+      corrige.
+    </p>
     <div class="grid-2">
       <article class="feat">
-        <h3>Los ejes pesan el 65%</h3>
+        <h3>Los ejes · 65%</h3>
         <p>
-          Cada eje aporta un parecido con caída rápida: a partir de cierto
-          desajuste deja de ser un matiz y pasa a descalificar. Se combinan en
-          media geométrica, que es la forma de decir «todo esto tiene que
-          cumplirse a la vez»: un solo término cerca de cero arrastra el
-          resultado entero.
+          Tienen que cumplirse todos a la vez. Acertar en la calidez no
+          compensa fallar en la energía: basta con quedarse lejos en uno
+          importante para quedar descartado.
         </p>
       </article>
       <article class="feat">
-        <h3>El contexto pesa el 20%</h3>
+        <h3>El contexto · 20%</h3>
         <p>
-          Y el acierto se pondera por lo específica que sea la canción. Decir
-          «encajo en cinco momentos» afirma menos sobre cada uno que decir
-          «encajo en este», así que un acierto de uno entre cuatro vale bastante
-          menos que uno de uno entre uno.
+          Una canción marcada sólo como «dormir» dice más que otra apuntada a
+          cinco momentos a la vez, así que su acierto vale más.
         </p>
       </article>
       <article class="feat">
-        <h3>Los adjetivos pesan el 15%</h3>
+        <h3>Los adjetivos · 15%</h3>
         <p>
-          Con derecho de veto: si la petición descarta explícitamente algo
-          —agresiva, oscura— y la canción lo lleva, queda fuera sin importar el
-          resto de la nota.
+          Suman si coinciden con lo que pides, y descartan del todo si la
+          canción lleva algo que has excluido.
         </p>
       </article>
       <article class="feat">
-        <h3>La confianza modula el conjunto</h3>
+        <h3>La confianza corrige</h3>
         <p>
-          Una etiqueta insegura no se descarta: se acerca al punto neutro. Si el
-          modelo no conocía la canción, su perfil no debería decidir nada por sí
-          solo, ni a favor ni en contra.
+          Si el modelo no conocía la canción, su perfil pesa menos en lugar de
+          decidir por su cuenta.
         </p>
       </article>
     </div>
   </div>
 </section>
-
 {% endblock %}

@@ -164,7 +164,9 @@ class OpenAIModel:
                 f"{self.base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_key}"} if self.api_key else {},
                 json=cuerpo,
-                timeout=180.0,
+                # Un modelo local tarda minutos por lote, y es legitimo: no hay
+                # cola ni red, solo una GPU pequena haciendo el trabajo.
+                timeout=900.0,
             )
         except httpx.HTTPError as exc:
             raise LLMError(

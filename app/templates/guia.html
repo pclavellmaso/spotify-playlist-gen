@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "iconos.html" as ico %}
 {% block title %}Guía de instalación — Compás{% endblock %}
 {% block description %}Cómo ejecutar Compás en tu propio equipo: cuentas necesarias, claves de API e instalación.{% endblock %}
 
@@ -53,10 +54,10 @@
           clave y sin coste.
         </p>
         <div class="provs">
-          <span class="prov prov-claude"><i>C</i>Claude</span>
-          <span class="prov prov-openai"><i>O</i>OpenAI</span>
-          <span class="prov prov-ollama"><i>◍</i>Ollama</span>
-          <span class="prov prov-local"><i>▲</i>LM Studio</span>
+          <span class="prov prov-claude">{{ ico.anthropic() }}<span>Claude</span></span>
+          <span class="prov prov-openai">{{ ico.modelo() }}<span>OpenAI</span></span>
+          <span class="prov prov-ollama">{{ ico.ollama() }}<span>Ollama</span></span>
+          <span class="prov prov-local">{{ ico.modelo() }}<span>LM Studio</span></span>
         </div>
       </li>
       <li>

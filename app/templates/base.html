@@ -1,3 +1,4 @@
+{% import "iconos.html" as ico %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -29,16 +30,16 @@
     </a>
     <nav class="links">
       <a href="/" class="{{ 'on' if page == 'inicio' }}">Producto</a>
-      <a href="/metodo" class="{{ 'on' if page == 'metodo' }}">Método</a>
+      <a href="/metodo" class="{{ 'on' if page == 'metodo' }}">Cómo funciona</a>
       <a href="/guia" class="{{ 'on' if page == 'guia' }}">Guía</a>
       <a href="/ajustes" class="{{ 'on' if page == 'ajustes' }}">Ajustes</a>
     </nav>
   </div>
 
-  <div class="pill pill-session">
+  <div class="pill pill-session" id="sessionpill">
     <span id="whoami" class="whoami hidden"></span>
     <button id="logout" class="btn btn-flat btn-sm hidden">Salir</button>
-    <a id="login" class="btn btn-primary btn-sm hidden" href="/api/auth/login">Entrar con Spotify</a>
+    <a id="login" class="btn btn-primary btn-sm hidden" href="/api/auth/login">{{ ico.spotify() }}Entrar con Spotify</a>
     <a id="openapp" class="btn btn-primary btn-sm hidden" href="/app">Abrir Compás</a>
   </div>
 </header>
@@ -85,13 +86,14 @@
 
     <div class="footer-bottom">
       <span>Herramienta personal. No afiliada a Spotify ni a Anthropic.</span>
-      <span>Todo se ejecuta en tu equipo. El token se guarda en tu disco con permisos 0600.</span>
+      <span>Tus datos no se comparten con nadie.</span>
     </div>
   </div>
 
   <div class="footer-wordmark" aria-hidden="true">Compás</div>
 </footer>
 
+<script src="/static/controles.js"></script>
 <script src="/static/chrome.js"></script>
 {% block scripts %}{% endblock %}
 </body>

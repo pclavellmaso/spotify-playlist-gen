@@ -332,7 +332,7 @@ function mostrarResultado(result) {
   $("rv-notes").textContent = result.query.notes || "";
 
   const ampliando = Boolean(result.playlist);
-  show($("plname"), !ampliando);
+  show($("namefield"), !ampliando);
   show($("save"), !ampliando);
   show($("append"), ampliando);
   if (ampliando) $("append").textContent = `Añadir a «${result.playlist.name}»`;
@@ -370,26 +370,27 @@ $("more").addEventListener("click", async (e) => {
   if (!current) return;
   ocupado(e.target, true, "Buscando…");
   const antes = current.tracks.length;
+  const cuantas = Number($("morecount").value) || 10;
   try {
     const r = await api("/api/more", {
       method: "POST",
       body: JSON.stringify({
         ...parametros(),
         query: current.query,
-        limit: antes + 10,
+        limit: antes + cuantas,
         target_minutes: null,
         min_score: Math.max(0, (current.min_score ?? 55) - 15),
         exclude: current.exclude || [],
       }),
     });
-    current = { ...r, limitPedido: antes + 10, exclude: current.exclude,
+    current = { ...r, limitPedido: antes + cuantas, exclude: current.exclude,
                 playlist: current.playlist, reference: current.reference };
     mostrarResultado(current);
     if (current.tracks.length === antes) {
       $("saved").textContent = "No queda nada más en tu biblioteca que encaje con esto.";
     }
   } catch (err) { alert(err.message); }
-  finally { ocupado(e.target, false, "Ampliar la búsqueda"); }
+  finally { ocupado(e.target, false, "Ampliar"); }
 });
 
 /* ==================== escritura en Spotify ==================== */
