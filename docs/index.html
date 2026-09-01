@@ -1,8 +1,48 @@
-{% extends "base.html" %}
-{% import "iconos.html" as ico %}
-{% block title %}Compás — playlists por momento{% endblock %}
 
-{% block body %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compás — playlists por momento</title>
+  <meta name="description" content="Playlists por momento a partir de tu propia biblioteca de Spotify. Software local.">
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+
+
+
+
+<header class="chrome">
+  <div class="pill pill-nav">
+    <a class="brand" href="index.html">
+      <svg class="mark " viewBox="0 0 24 34" aria-hidden="true">
+  <polygon class="f-nw" points="12,1 1,14 12,14"></polygon>
+  <polygon class="f-ne" points="12,1 23,14 12,14"></polygon>
+  <polygon class="f-sw" points="1,14 12,33 12,14"></polygon>
+  <polygon class="f-se" points="23,14 12,33 12,14"></polygon>
+</svg>
+      <span class="brand-name">Compás</span>
+    </a>
+    <nav class="links">
+      <a href="index.html" class="on">Producto</a>
+      <a href="metodo.html" class="">Cómo funciona</a>
+      <a href="guia.html" class="">Guía</a>
+      
+    </nav>
+  </div>
+
+  
+  
+  <div class="pill pill-naked">
+    <a class="btn btn-flat btn-sm" href="https://github.com/pclavellmaso/spotify-playlist-gen"
+       target="_blank" rel="noopener">Código</a>
+    <a class="btn btn-primary btn-sm" href="guia.html">Instalarlo</a>
+  </div>
+  
+</header>
+
+
 <section class="hero">
   <div class="hero-glow" aria-hidden="true"></div>
   <div class="wrap hero-inner">
@@ -16,10 +56,10 @@
       a lo que le pidas en lenguaje llano. No descubre música: rescata la tuya.
     </p>
     <div class="hero-actions">
-      <a href="{{ 'guia.html' if estatico else '/app' }}" class="btn btn-primary btn-lg">
-        {{ "Instalarlo en tu equipo" if estatico else "Abrir Compás" }}
+      <a href="guia.html" class="btn btn-primary btn-lg">
+        Instalarlo en tu equipo
       </a>
-      <a href="/metodo" class="btn btn-flat btn-lg">Cómo funciona</a>
+      <a href="metodo.html" class="btn btn-flat btn-lg">Cómo funciona</a>
     </div>
 
     <div class="demo">
@@ -32,7 +72,12 @@
           <div class="bubble">última hora en una terraza que no quiere cerrar</div>
         </div>
         <div class="msg msg-bot">
-          <span class="avatar">{{ marca() }}</span>
+          <span class="avatar"><svg class="mark " viewBox="0 0 24 34" aria-hidden="true">
+  <polygon class="f-nw" points="12,1 1,14 12,14"></polygon>
+  <polygon class="f-ne" points="12,1 23,14 12,14"></polygon>
+  <polygon class="f-sw" points="1,14 12,33 12,14"></polygon>
+  <polygon class="f-se" points="23,14 12,33 12,14"></polygon>
+</svg></span>
           <div class="bubble">
             Lo leo como el final de la noche al aire libre: energía media-baja,
             tempo contenido y mucha calidez.
@@ -124,7 +169,8 @@
     <h2 class="band-title">Tres formas de usarlo</h2>
     <div class="usos">
       <article class="uso">
-        {{ ico.ui('momento', 'ico ico-xl') }}
+        <svg class="ico ico-xl ico-line" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-5.4A8 8 0 0 1 3 12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/><path d="M8.5 11h7M8.5 14.5h4"/>
+</svg>
         <h3>Describe un momento</h3>
         <p>
           «Conduciendo de noche por la costa». La lista sale de tus canciones
@@ -132,7 +178,8 @@
         </p>
       </article>
       <article class="uso">
-        {{ ico.ui('similar', 'ico ico-xl') }}
+        <svg class="ico ico-xl ico-line" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="12" height="12" rx="2"/><path d="M9 18v1a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1"/>
+</svg>
         <h3>Amplía una lista</h3>
         <p>
           Compás deduce su carácter de lo que ya contiene, no de su título, y
@@ -140,7 +187,8 @@
         </p>
       </article>
       <article class="uso">
-        {{ ico.ui('curva', 'ico ico-xl') }}
+        <svg class="ico ico-xl ico-line" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18c4 0 5-11 9-11s5 11 9 11"/><circle cx="3" cy="18" r="1.4"/><circle cx="12" cy="7" r="1.4"/><circle cx="21" cy="18" r="1.4"/>
+</svg>
         <h3>Dale forma</h3>
         <p>
           Hora y media en vez de treinta canciones, y una curva de energía que
@@ -161,7 +209,60 @@
         minutos.
       </p>
     </div>
-    <a href="/guia" class="btn btn-primary btn-lg">Ver la guía de instalación</a>
+    <a href="guia.html" class="btn btn-primary btn-lg">Ver la guía de instalación</a>
   </div>
 </section>
-{% endblock %}
+
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-lead">
+        <p class="footer-claim">
+          Mil ochocientas canciones tuyas,<br>
+          esperando el momento adecuado.
+        </p>
+        <a href="guia.html" class="btn btn-primary">
+          Instalarlo en tu equipo
+        </a>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <h4>Producto</h4>
+          <a href="index.html">Presentación</a>
+          <a href="metodo.html">Cómo funciona</a>
+          
+        </div>
+        <div>
+          <h4>Instalación</h4>
+          <a href="guia.html">Guía completa</a>
+          <a href="guia.html#claves">Claves y licencias</a>
+          <a href="guia.html#problemas">Errores frecuentes</a>
+          <a href="guia.html#instalar">Ajustes</a>
+        </div>
+        <div>
+          <h4>Servicios</h4>
+          <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify for Developers</a>
+          <a href="https://console.anthropic.com" target="_blank" rel="noopener">Consola de Anthropic</a>
+          <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">Clave de Last.fm</a>
+        </div>
+        <div>
+          <h4>Código</h4>
+          <a href="https://github.com/pclavellmaso/spotify-playlist-gen" target="_blank" rel="noopener">Repositorio</a>
+          <a href="https://github.com/pclavellmaso/spotify-playlist-gen" target="_blank">Referencia de la API</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>Herramienta personal. No afiliada a Spotify ni a Anthropic.</span>
+      <span>Tus datos no se comparten con nadie.</span>
+    </div>
+  </div>
+
+  <div class="footer-wordmark" aria-hidden="true">Compás</div>
+</footer>
+
+
+</body>
+</html>
