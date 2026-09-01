@@ -95,7 +95,10 @@ Reglas:
 - `descriptors`: adjetivos en minusculas y sin tildes que deberia evocar la seleccion.
 - `avoid_descriptors`: lo que arruinaria el momento descrito.
 - `label`: nombre corto y evocador para la playlist, en el idioma de la peticion.
-- `notes`: una frase explicando como has interpretado la peticion.
+- `notes`: UNA frase que describa el ambiente que va a sonar. Directa, en
+  presente, sin explicar tu razonamiento y sin formulas del tipo "lo leo como",
+  "entiendo que" o "interpreto que". Ejemplo: "Tarde larga y luminosa, con
+  ritmo suficiente para no dormirse pero nada que interrumpa la charla."
 
 Ejemplo: "momento calma en la piscina con una cervecita" ->
 energy {{value 35, weight 1.0}}, valence {{value 75, weight 1.0}}, warmth {{value 80,

@@ -48,7 +48,7 @@
     <span id="whoami" class="whoami hidden"></span>
     <button id="logout" class="btn btn-flat btn-sm hidden">Salir</button>
     <a id="login" class="btn btn-primary btn-sm hidden" href="/api/auth/login">{{ ico.spotify() }}Entrar con Spotify</a>
-    <a id="openapp" class="btn btn-primary btn-sm hidden" href="/app">Abrir Compás</a>
+    <a id="openapp" class="btn btn-primary btn-sm hidden" href="/app">Empezar</a>
   </div>
   {% endif %}
 </header>
@@ -64,7 +64,7 @@
           esperando el momento adecuado.
         </p>
         <a href="{{ 'guia.html' if estatico else '/app' }}" class="btn btn-primary">
-          {{ "Instalarlo en tu equipo" if estatico else "Abrir Compás" }}
+          {{ "Instalarlo en tu equipo" if estatico else "Empezar" }}
         </a>
       </div>
       <div class="footer-cols">

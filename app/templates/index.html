@@ -17,7 +17,7 @@
     </p>
     <div class="hero-actions">
       <a href="{{ 'guia.html' if estatico else '/app' }}" class="btn btn-primary btn-lg">
-        {{ "Instalarlo en tu equipo" if estatico else "Abrir Compás" }}
+        {{ "Instalarlo en tu equipo" if estatico else "Empezar" }}
       </a>
       <a href="/metodo" class="btn btn-flat btn-lg">Cómo funciona</a>
     </div>
@@ -34,8 +34,8 @@
         <div class="msg msg-bot">
           <span class="avatar">{{ marca() }}</span>
           <div class="bubble">
-            Lo leo como el final de la noche al aire libre: energía media-baja,
-            tempo contenido y mucha calidez.
+            Noche templada que no tiene prisa por acabarse: cálida, sin
+            aristas y con el volumen justo para seguir hablando.
             <div class="axes">
               <span class="axis">energía <b>40</b></span>
               <span class="axis">tempo <b>38</b></span>
@@ -84,37 +84,39 @@
 </section>
 
 <section class="band">
-  <div class="wrap">
-    <p class="eyebrow">Por qué existe</p>
-    <h2 class="band-title">Spotify retiró los datos que hacían fácil esto</h2>
-    <p class="band-lead">
-      En noviembre de 2024 desaparecieron para toda aplicación nueva la energía,
-      la valencia y el tempo de cada tema. Compás reconstruye esa información por
-      otro camino y la guarda en tu equipo.
-    </p>
-    <div class="grid-3">
-      <article class="feat">
-        <h3>Una sola pasada</h3>
-        <p>
-          Cada canción se perfila una vez. A partir de ahí, pedir una lista es
-          aritmética: instantáneo y gratuito.
-        </p>
-      </article>
-      <article class="feat">
-        <h3>Emparejado conjuntivo</h3>
-        <p>
-          Pedir calma y recibir algo enérgico pero cálido no es medio acierto.
-          Fallar en un eje importante descarta el tema.
-        </p>
-      </article>
-      <article class="feat">
-        <h3>Incertidumbre declarada</h3>
-        <p>
-          Con música poco conocida el modelo lo dice, y ese perfil pesa menos en
-          lugar de decidir solo.
-        </p>
-      </article>
+  <div class="wrap capa">
+    <div class="capa-texto">
+      <p class="eyebrow">Qué añade</p>
+      <h2 class="band-title">Una capa que tu biblioteca no trae de serie</h2>
+      <p class="band-lead">
+        Spotify sabe el título, el artista y el año de cada tema. No sabe a qué
+        suena. Compás construye esa capa que falta: sitúa cada canción en siete
+        medidas y la guarda en tu equipo, de modo que puedes pedirle música por
+        cómo te la imaginas y no por cómo se llama.
+      </p>
+      <ul class="capa-puntos">
+        <li><b>Se paga una vez.</b> Cada canción se mide una sola vez y queda guardada; pedir listas después es instantáneo y gratis.</li>
+        <li><b>Exige que cuadre todo.</b> Acertar la calidez no compensa fallar la energía: quedarse lejos en un eje importante descarta el tema.</li>
+        <li><b>Dice cuándo no está segura.</b> Con música poco conocida lo declara, y ese perfil pesa menos en lugar de decidir solo.</li>
+      </ul>
     </div>
+
+    <figure class="perfil">
+      <figcaption>
+        <span class="perfil-tema">Morcheeba — World Looking In</span>
+        <span class="perfil-conf">confianza 78</span>
+      </figcaption>
+      <div class="perfil-ejes">
+        <div class="pe"><span>Energía</span><i style="--v:55%"></i><b>55</b></div>
+        <div class="pe"><span>Luminosidad</span><i style="--v:62%"></i><b>62</b></div>
+        <div class="pe"><span>Baile</span><i style="--v:68%"></i><b>68</b></div>
+        <div class="pe"><span>Acústico</span><i style="--v:45%"></i><b>45</b></div>
+        <div class="pe"><span>Tempo</span><i style="--v:55%"></i><b>55</b></div>
+        <div class="pe"><span>Voz</span><i style="--v:72%"></i><b>72</b></div>
+        <div class="pe"><span>Calidez</span><i style="--v:75%"></i><b>75</b></div>
+      </div>
+      <p class="perfil-pie">trip-hop · suave · nostálgica · envolvente</p>
+    </figure>
   </div>
 </section>
 
