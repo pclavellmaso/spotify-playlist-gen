@@ -31,7 +31,6 @@
       <span class="brand-name">Compás</span>
     </a>
     <nav class="links">
-      <a href="/" class="{{ 'on' if page == 'inicio' }}">Producto</a>
       <a href="/metodo" class="{{ 'on' if page == 'metodo' }}">Cómo funciona</a>
       <a href="/guia" class="{{ 'on' if page == 'guia' }}">Guía</a>
       {% if not estatico %}<a href="/ajustes" class="{{ 'on' if page == 'ajustes' }}">Ajustes</a>{% endif %}
@@ -42,7 +41,7 @@
   {# En la web publica no hay sesion que mostrar: cada uno lo corre en su equipo. #}
   <div class="pill pill-naked">
     <a class="btn btn-flat btn-sm" href="https://github.com/pclavellmaso/spotify-playlist-gen"
-       target="_blank" rel="noopener">Código</a>
+       target="_blank" rel="noopener">{{ ico.github() }}GitHub</a>
     <a class="btn btn-primary btn-sm" href="guia.html">Instalarlo</a>
   </div>
   {% else %}
