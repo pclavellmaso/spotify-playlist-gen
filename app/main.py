@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.config import SCOPES, MODELOS_POR_DEFECTO, settings, write_env
 from app.db import Library
-from app.lastfm import LastfmClient, album_key, artist_key, merge
+from app.lastfm import Descubridor, LastfmClient, album_key, artist_key, merge
 from app.llm import LLMError, build_model
 from app.matcher import blend, profile_from_tracks, select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
@@ -39,6 +39,7 @@ spotify = SpotifyClient(
 )
 
 lastfm = LastfmClient(settings.lastfm_api_key)
+descubridor = Descubridor(lastfm)
 
 # El flujo OAuth es de un solo usuario en local, con lo que basta memoria.
 _pending_auth: dict[str, str] = {}
@@ -241,6 +242,7 @@ def status() -> dict[str, Any]:
         "model": settings.ai_model,
         "provider": settings.ai_provider,
         "lastfm": lastfm.enabled,
+        "discover": descubridor.enabled,
         "sources": library.sources(),
     }
 
@@ -301,6 +303,48 @@ def stats(source: str = "liked") -> dict[str, Any]:
     return {**library.stats(source, TAGGER_VERSION), "job": _job}
 
 
+def _con_tags_lastfm(chunk: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Adjunta los tags de comunidad, del cache o preguntando lo que falte.
+
+    Se pregunta por artista y album, no por cancion: a nivel de tema Last.fm
+    devuelve vacio siempre. Varias canciones comparten entidad, asi que un lote
+    de 40 suele resolverse con muchas menos peticiones.
+    """
+    if not lastfm.enabled:
+        return chunk
+
+    needed: dict[str, tuple[str, str]] = {}
+    for track in chunk:
+        artist = (track["artists"] or [""])[0]
+        if not artist:
+            continue
+        needed[artist_key(artist)] = ("artist", artist)
+        if track.get("album"):
+            needed[album_key(artist, track["album"])] = ("album", artist)
+
+    cached = library.lastfm_tags(list(needed))
+    fetched: dict[str, list[str]] = {}
+    for key, (kind, artist) in needed.items():
+        if key in cached:
+            continue
+        # Se cachea tambien la lista vacia: "Last.fm no lo conoce" es una
+        # respuesta, y no hay que volver a preguntarla en cada pasada.
+        if kind == "artist":
+            fetched[key] = lastfm.artist_tags(artist)
+        else:
+            fetched[key] = lastfm.album_tags(artist, key.split("|", 1)[1])
+    if fetched:
+        library.save_lastfm_tags(fetched)
+
+    tags = {**cached, **fetched}
+    out = []
+    for track in chunk:
+        artist = (track["artists"] or [""])[0]
+        album = tags.get(album_key(artist, track["album"]), []) if track.get("album") else []
+        out.append({**track, "lastfm_tags": merge(album, tags.get(artist_key(artist), []))})
+    return out
+
+
 class TagRequest(BaseModel):
     source: str = "liked"
     limit: int | None = Field(default=None, description="Tope de canciones a etiquetar")
@@ -330,48 +374,9 @@ def tag(req: TagRequest) -> dict[str, Any]:
 
     tagger = _tagger()
 
-    def with_lastfm_tags(chunk: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Adjunta los tags de comunidad, del cache o preguntando lo que falte."""
-        if not lastfm.enabled:
-            return chunk
-
-        # Se pregunta por artista y album, no por cancion: a nivel de tema
-        # Last.fm devuelve vacio siempre. Varias canciones comparten entidad,
-        # asi que un lote de 40 suele resolverse con muchas menos peticiones.
-        needed: dict[str, tuple[str, str]] = {}
-        for track in chunk:
-            artist = (track["artists"] or [""])[0]
-            if not artist:
-                continue
-            needed[artist_key(artist)] = ("artist", artist)
-            if track.get("album"):
-                needed[album_key(artist, track["album"])] = ("album", artist)
-
-        cached = library.lastfm_tags(list(needed))
-        fetched: dict[str, list[str]] = {}
-        for key, (kind, artist) in needed.items():
-            if key in cached:
-                continue
-            # Se cachea tambien la lista vacia: "Last.fm no lo conoce" es una
-            # respuesta, y no hay que volver a preguntarla en cada pasada.
-            if kind == "artist":
-                fetched[key] = lastfm.artist_tags(artist)
-            else:
-                fetched[key] = lastfm.album_tags(artist, key.split("|", 1)[1])
-        if fetched:
-            library.save_lastfm_tags(fetched)
-
-        tags = {**cached, **fetched}
-        out = []
-        for track in chunk:
-            artist = (track["artists"] or [""])[0]
-            album = tags.get(album_key(artist, track["album"]), []) if track.get("album") else []
-            out.append({**track, "lastfm_tags": merge(album, tags.get(artist_key(artist), []))})
-        return out
-
     def worker() -> None:
         try:
-            for vibes in tagger.tag_all(pending, prepare=with_lastfm_tags):
+            for vibes in tagger.tag_all(pending, prepare=_con_tags_lastfm):
                 if vibes:
                     library.save_vibes(vibes, TAGGER_VERSION)
                 with _job_lock:
@@ -545,6 +550,112 @@ def extend(req: ExtendRequest) -> dict[str, Any]:
     # ya esta dentro sin volver a leer la playlist de Spotify.
     body["exclude"] = req.exclude
     return body
+
+
+# Origen aparte para lo que no esta en tu biblioteca: asi el cache de perfiles
+# funciona igual pero no se mezcla con tus canciones.
+FUENTE_DESCUBRIMIENTO = "descubrimiento"
+
+# Topes deliberados. Cada candidato nuevo cuesta una consulta a Last.fm, una
+# busqueda en Spotify y su parte del perfilado, que es lo unico que cuesta
+# dinero. Mejor pocos y buenos que una expedicion cara.
+MAX_SEMILLAS = 6
+SIMILARES_POR_SEMILLA = 6
+TEMAS_POR_ARTISTA = 4
+MAX_CANDIDATOS = 40
+
+
+class DiscoverRequest(BaseModel):
+    """Buscar fuera de tu biblioteca lo que encaje con la misma peticion."""
+
+    query: VibeQuery
+    seeds: list[str] = Field(default_factory=list, description="Artistas que ya han encajado")
+    source: str = "liked"
+    limit: int = Field(default=20, ge=1, le=100)
+    min_score: float = Field(default=55.0, ge=0, le=100)
+    max_per_artist: int = Field(default=2, ge=1, le=10)
+    order: str = Field(default="rise", pattern="^(rise|fall|peak|score|flow)$")
+    target_minutes: int | None = None
+    exclude: list[str] = Field(default_factory=list)
+
+
+@app.post("/api/discover")
+def discover(req: DiscoverRequest) -> dict[str, Any]:
+    """Propone canciones que no tienes, con el mismo criterio.
+
+    Spotify retiro `/recommendations` y `related-artists` en noviembre de 2024,
+    asi que no hay forma de pedirle temas parecidos. El grafo que si queda es el
+    de Last.fm, y es bueno: para Folamour devuelve Bellaire, Tour-Maubourg o
+    Chaos in the CBD. Se parte de los artistas que **ya han encajado** en tu
+    seleccion, se buscan sus parecidos, se resuelven sus temas principales en
+    Spotify y se perfilan igual que los tuyos. Solo entra lo que supera la nota:
+    el criterio no se relaja por venir de fuera.
+    """
+    if not descubridor.enabled:
+        raise HTTPException(400, "Esto necesita una clave de Last.fm. Ponla en ajustes.")
+    if not req.seeds:
+        raise HTTPException(400, "No hay de donde partir: genera una seleccion primero.")
+
+    conocidas = {t["id"] for t in library.tracks_for_source(req.source)}
+    ya_vistos = set(req.exclude) | conocidas
+
+    candidatos: dict[str, dict[str, Any]] = {}
+    artistas_propios = {s.lower() for s in req.seeds}
+    for semilla in req.seeds[:MAX_SEMILLAS]:
+        for parecido in descubridor.similares(semilla, SIMILARES_POR_SEMILLA):
+            if parecido.lower() in artistas_propios or len(candidatos) >= MAX_CANDIDATOS:
+                continue
+            artistas_propios.add(parecido.lower())
+            for titulo in descubridor.top_temas(parecido, TEMAS_POR_ARTISTA):
+                if len(candidatos) >= MAX_CANDIDATOS:
+                    break
+                tema = spotify.buscar_track(parecido, titulo)
+                # Lo que ya tienes no es un descubrimiento.
+                if tema and tema["id"] not in ya_vistos and tema["id"] not in candidatos:
+                    candidatos[tema["id"]] = tema
+
+    if not candidatos:
+        raise HTTPException(400, "No se ha encontrado nada nuevo que encaje con esto.")
+
+    library.upsert_tracks(list(candidatos.values()))
+    pendientes = library.untagged(FUENTE_DESCUBRIMIENTO, TAGGER_VERSION)
+    pendientes = [t for t in pendientes if t["id"] in candidatos]
+    if pendientes:
+        tagger = _tagger()
+        try:
+            for vibes in tagger.tag_all(pendientes, prepare=_con_tags_lastfm):
+                if vibes:
+                    library.save_vibes(vibes, TAGGER_VERSION)
+        except TaggingAborted as exc:
+            raise HTTPException(502, str(exc)) from exc
+
+    perfilados = [
+        t for t in library.tagged_tracks(FUENTE_DESCUBRIMIENTO, TAGGER_VERSION)
+        if t["id"] in candidatos
+    ]
+    picked = select(
+        perfilados, req.query,
+        limit=req.limit, min_score=req.min_score,
+        max_per_artist=req.max_per_artist, order=req.order,
+        target_minutes=req.target_minutes,
+    )
+    return {
+        "query": req.query.model_dump(),
+        "pool": len(perfilados),
+        "min_score": req.min_score,
+        "order": req.order,
+        "minutes": round(sum(t.get("duration_ms") or 0 for t in picked) / 60000),
+        "descubierto": True,
+        "candidatos": len(candidatos),
+        "tracks": [
+            {
+                "id": t["id"], "name": t["name"], "artists": t["artists"],
+                "album": t["album"], "year": t["release_year"], "score": t["score"],
+                "descriptors": t["descriptors"], "confidence": t["confidence"],
+            }
+            for t in picked
+        ],
+    }
 
 
 class AppendRequest(BaseModel):

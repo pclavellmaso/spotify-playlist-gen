@@ -84,6 +84,12 @@
               </span>
             </div>
 
+            <button id="explorar" class="toggle" type="button" role="switch"
+                    aria-checked="false"
+                    title="Buscar también canciones que no tienes, del mismo estilo">
+              {{ ico.ui('destello', 'ico') }}<span>Explorar fuera</span>
+            </button>
+
             <button id="generate" class="send" type="button" aria-label="Generar">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13M12 5l7 7-7 7"/></svg>
             </button>
@@ -111,6 +117,9 @@
             <button id="more" class="btn btn-flat" type="button">Ampliar</button>
           </div>
         </div>
+        <button id="descubrir" class="btn btn-flat" type="button">
+          {{ ico.ui('destello', 'ico') }}Explorar fuera
+        </button>
         <span class="rv-spacer"></span>
         <div class="field rv-field" id="namefield">
           <label for="plname">Nombre de la playlist</label>

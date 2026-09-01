@@ -201,6 +201,31 @@ class SpotifyClient:
         source = f"playlist:{playlist_id}"
         return [t for t in (_normalize(i, source) for i in items) if t]
 
+    def buscar_track(self, artista: str, titulo: str) -> dict[str, Any] | None:
+        """Resuelve «artista + titulo» a un tema del catalogo.
+
+        `/search` es lo unico que queda para llegar a musica que no tienes:
+        `/recommendations`, `related-artists` y `top-tracks` de artista fueron
+        retirados y responden 404 o 403.
+
+        Se compara el artista devuelto con el pedido porque la busqueda de
+        Spotify es generosa: sin ese filtro cuela versiones, homonimos y
+        recopilatorios de karaoke.
+        """
+        if not artista or not titulo:
+            return None
+        datos = self._request(
+            "GET", "/search",
+            params={"q": f'artist:"{artista}" track:"{titulo}"', "type": "track", "limit": 3},
+        ) or {}
+        for item in (datos.get("tracks") or {}).get("items") or []:
+            normalizado = _normalize({"track": item}, "descubrimiento")
+            if not normalizado:
+                continue
+            if any(a.lower() == artista.lower() for a in normalizado["artists"]):
+                return normalizado
+        return None
+
     def create_playlist(
         self, name: str, description: str, track_ids: list[str], public: bool = False
     ) -> dict[str, Any]:

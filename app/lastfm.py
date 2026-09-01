@@ -87,8 +87,17 @@ class LastfmClient:
     def _tags(self, method: str, params: dict[str, str], drop: set[str]) -> list[str]:
         """Devuelve lista vacia ante cualquier problema: esto no puede tumbar
         un etiquetado de 1.800 canciones."""
+        payload = self.consultar(method, params)
+        return _clean(payload, drop) if payload else []
+
+    def consultar(self, method: str, params: dict[str, str]) -> dict[str, Any]:
+        """Llamada cruda, con el limite de peticiones y los errores ya tratados.
+
+        Devuelve {} ante cualquier problema: ni el etiquetado ni el
+        descubrimiento pueden caerse porque Last.fm tenga un mal dia.
+        """
         if not self.enabled:
-            return []
+            return {}
 
         self._throttle()
         try:
@@ -105,24 +114,24 @@ class LastfmClient:
             )
         except httpx.HTTPError as exc:
             log.debug("Last.fm no respondio a %s %s: %s", method, params, exc)
-            return []
+            return {}
 
         if resp.status_code != 200:
             log.debug("Last.fm %s en %s %s", resp.status_code, method, params)
-            return []
+            return {}
         try:
             payload = resp.json()
         except ValueError:
-            return []
+            return {}
 
         if "error" in payload:
             # 6 = no esta en su catalogo, que es de lo mas normal.
             if payload.get("error") != 6:
                 log.warning("Last.fm error %s: %s", payload.get("error"),
                             payload.get("message"))
-            return []
+            return {}
 
-        return _clean(payload, drop)
+        return payload
 
     def _throttle(self) -> None:
         wait = MIN_INTERVAL - (time.monotonic() - self._last_call)
@@ -166,3 +175,36 @@ def merge(album: list[str], artist: list[str], limit: int = MAX_TAGS) -> list[st
         if len(out) == limit:
             break
     return out
+
+
+# --------------------------------------------------------------------------
+# Descubrimiento
+# --------------------------------------------------------------------------
+# Spotify retiro `/recommendations`, `related-artists` y `top-tracks` de artista:
+# los tres responden 404 o 403. El unico grafo de similitud que queda accesible
+# es el de Last.fm, y es bueno: para Folamour devuelve Bellaire, Tour-Maubourg,
+# Chaos in the CBD. Lo que NO sirve es `tag.getTopTracks`: esta dominado por
+# popularidad y para "deep house" devuelve Madonna.
+class Descubridor:
+    """Artistas parecidos y sus temas principales, via Last.fm."""
+
+    def __init__(self, cliente: LastfmClient):
+        self.fm = cliente
+
+    @property
+    def enabled(self) -> bool:
+        return self.fm.enabled
+
+    def similares(self, artista: str, limite: int = 8) -> list[str]:
+        datos = self.fm.consultar("artist.getsimilar", {"artist": artista, "limit": limite})
+        crudo = (datos.get("similarartists") or {}).get("artist") or []
+        if isinstance(crudo, dict):
+            crudo = [crudo]
+        return [a["name"] for a in crudo if isinstance(a, dict) and a.get("name")]
+
+    def top_temas(self, artista: str, limite: int = 5) -> list[str]:
+        datos = self.fm.consultar("artist.gettoptracks", {"artist": artista, "limit": limite})
+        crudo = (datos.get("toptracks") or {}).get("track") or []
+        if isinstance(crudo, dict):
+            crudo = [crudo]
+        return [t["name"] for t in crudo if isinstance(t, dict) and t.get("name")]

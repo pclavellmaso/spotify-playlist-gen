@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "iconos.html" as ico %}
 {% block title %}Compás — playlists por momento{% endblock %}
 
 {% block body %}
@@ -88,26 +89,29 @@
   <div class="wrap">
     <p class="eyebrow">Qué puedes pedirle</p>
     <h2 class="band-title">Tres formas de usarlo</h2>
-    <div class="grid-3">
-      <article class="feat">
-        <h3>Un momento</h3>
+    <div class="usos">
+      <article class="uso">
+        {{ ico.ui('momento', 'ico ico-xl') }}
+        <h3>Describe un momento</h3>
         <p>
-          Describe la situación y sale la lista. «Conduciendo de noche por la
-          costa» o «kilómetro doce de una carrera larga».
+          «Conduciendo de noche por la costa». La lista sale de tus canciones
+          guardadas.
         </p>
       </article>
-      <article class="feat">
-        <h3>Más como esto</h3>
+      <article class="uso">
+        {{ ico.ui('similar', 'ico ico-xl') }}
+        <h3>Amplía una lista</h3>
         <p>
-          Señala una lista que ya tengas: Compás deduce su carácter de lo que
-          contiene, no de su título, y propone temas que encajan.
+          Compás deduce su carácter de lo que ya contiene, no de su título, y
+          propone temas que encajan.
         </p>
       </article>
-      <article class="feat">
-        <h3>Con forma y duración</h3>
+      <article class="uso">
+        {{ ico.ui('curva', 'ico ico-xl') }}
+        <h3>Dale forma</h3>
         <p>
           Hora y media en vez de treinta canciones, y una curva de energía que
-          sube, baja o hace cima en el centro. Para irse a la cama, descendente.
+          sube, baja o hace cima.
         </p>
       </article>
     </div>
@@ -117,7 +121,7 @@
 <section class="band band-cta">
   <div class="wrap cta-inner">
     <div>
-      <h2 class="band-title">Corre en tu equipo, no en el mío</h2>
+      <h2 class="band-title">Tu música, tu equipo, tu privacidad</h2>
       <p class="band-lead">
         Spotify Premium, un modelo de lenguaje y diez minutos. La guía lo explica
         paso a paso.

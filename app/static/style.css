@@ -209,12 +209,6 @@ h1, h2, h3, h4 { letter-spacing: -0.034em; font-weight: 700; margin: 0; line-hei
 .axis-row b { font-weight: 650; }
 .axis-row span { color: var(--muted); font-size: 14.5px; }
 
-.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 34px; }
-.toc a {
-  padding: 8px 15px; border: 1px solid var(--line); border-radius: 999px;
-  color: var(--muted); font-size: 13.5px;
-}
-.toc a:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
 
 .setup-list { list-style: none; padding: 0; margin: 0; counter-reset: s; }
 .setup-list > li {
@@ -569,19 +563,22 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: var(--a
 .acc-body p:last-child { margin-bottom: 0; }
 
 /* ---------------- índice de la guía ---------------- */
-/* Nada de botones: una secuencia numerada que se sigue con la vista. */
-.toc { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 36px; }
+/* Una secuencia numerada, no una fila de botones. El separador va dentro del
+   enlace para que al envolver no quede una raya suelta al final de la linea. */
+.toc { display: flex; flex-wrap: wrap; align-items: center; margin-top: 36px; row-gap: 4px; }
 .toc a {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 0; color: var(--muted); font-size: 13.5px;
+  display: inline-flex; align-items: baseline; gap: 9px;
+  padding: 7px 0; color: var(--muted); font-size: 14px;
+  border: 0; border-radius: 0;
 }
 .toc a::before {
   content: attr(data-n);
-  font-family: var(--mono); font-size: 10.5px; color: var(--accent); opacity: .8;
+  font-family: var(--mono); font-size: 10.5px; color: var(--accent); opacity: .75;
 }
 .toc a:hover { color: var(--fg); text-decoration: none; }
 .toc a:not(:last-child)::after {
-  content: ""; width: 26px; height: 1px; margin: 0 14px; background: var(--line);
+  content: ""; align-self: center; width: 24px; height: 1px;
+  margin: 0 16px; background: var(--line);
 }
 
 /* ---------------- iconos de proveedor ---------------- */
@@ -641,3 +638,38 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: var(--a
 .rv-inline .num { width: 84px; }
 #namefield { flex: 0 1 260px; }
 .dd-arriba .dd-menu { top: auto; bottom: calc(100% + 6px); }
+
+/* ---------------- usos: lo que sabe hacer la aplicación ---------------- */
+.usos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.uso {
+  padding: 34px 30px 32px; border: 1px solid var(--line); border-radius: 16px;
+  background: linear-gradient(170deg, rgba(29,185,84,.05), transparent 55%), var(--bg);
+  transition: border-color .18s, transform .18s;
+}
+.band-quiet .uso { background: linear-gradient(170deg, rgba(29,185,84,.06), transparent 55%), var(--panel); }
+.uso:hover { border-color: rgba(29,185,84,.4); transform: translateY(-2px); }
+.ico-xl { width: 30px; height: 30px; color: var(--accent); stroke-width: 1.5; }
+.uso h3 { margin: 20px 0 10px; font-size: 19px; }
+.uso p { margin: 0; color: var(--muted); font-size: 14.5px; }
+@media (max-width: 900px) { .usos { grid-template-columns: 1fr; } }
+
+/* Interruptor de exploración: apagado por defecto porque cuesta dinero. */
+.toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 13px 6px 10px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); color: var(--muted); font: inherit; font-size: 12.5px;
+  cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+}
+.toggle:hover { border-color: var(--muted); color: var(--fg); }
+.toggle .ico { width: 14px; height: 14px; }
+.toggle[aria-checked="true"] {
+  border-color: rgba(29,185,84,.5); color: var(--accent);
+  background: rgba(29,185,84,.08);
+}
+/* Marca las canciones que no son tuyas. */
+.tracks li.nueva .track-title::after {
+  content: "nueva"; margin-left: 9px; padding: 2px 7px; vertical-align: 2px;
+  border: 1px solid rgba(29,185,84,.4); border-radius: 999px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--accent); font-weight: 500;
+}

@@ -63,6 +63,9 @@ function ocupado(el, estado, etiqueta) {
 
   yo = estado.user || "";
   show($("studio"), true);
+  // Sin Last.fm no hay grafo de similitud del que tirar.
+  show($("explorar"), estado.discover);
+  show($("descubrir"), estado.discover);
   pintarChips();
   await cargarListas();
   await refrescar();
@@ -171,6 +174,12 @@ function setModo(nuevo) {
     ? "Opcional: cómo quieres que varíe. «más tranquilo», «menos voces»…"
     : "Describe el momento…";
 }
+$("explorar").addEventListener("click", (e) => {
+  const on = e.currentTarget.getAttribute("aria-checked") !== "true";
+  e.currentTarget.setAttribute("aria-checked", String(on));
+});
+const explorando = () => $("explorar").getAttribute("aria-checked") === "true";
+
 $("tab-new").addEventListener("click", () => setModo("new"));
 $("tab-extend").addEventListener("click", () => setModo("extend"));
 
@@ -295,6 +304,7 @@ $("generate").addEventListener("click", async (e) => {
     mostrarResultado(r);
     $("prompt").value = "";
     $("prompt").style.height = "auto";
+    if (explorando()) await explorarFuera();
   } catch (err) {
     pensando.remove();
     burbuja("bot", err.message);
@@ -328,6 +338,7 @@ function mostrarResultado(result) {
     `exigencia ${result.min_score}`,
   ];
   if (result.reference) partes.push(`referencia ${result.reference}`);
+  if (result.descubiertas) partes.push(`${result.descubiertas} de fuera`);
   $("rv-meta").textContent = partes.join(" · ");
   $("rv-notes").textContent = result.query.notes || "";
 
@@ -341,6 +352,7 @@ function mostrarResultado(result) {
   $("tracks").innerHTML = "";
   for (const t of result.tracks) {
     const li = document.createElement("li");
+    if (t.nueva) li.classList.add("nueva");
     const info = document.createElement("div");
     const titulo = document.createElement("div");
     titulo.className = "track-title";
@@ -392,6 +404,49 @@ $("more").addEventListener("click", async (e) => {
   } catch (err) { alert(err.message); }
   finally { ocupado(e.target, false, "Ampliar"); }
 });
+
+/* ==================== explorar fuera de la biblioteca ==================== */
+// Spotify retiró /recommendations en 2024, así que los parecidos salen del
+// grafo de Last.fm partiendo de los artistas que YA han encajado. Todo lo que
+// vuelve pasa por el mismo scorer: el criterio no se relaja por venir de fuera.
+async function explorarFuera(boton) {
+  if (!current || !current.tracks.length) return;
+  const semillas = [...new Set(current.tracks.map((t) => t.artists[0]).filter(Boolean))];
+  const aviso = burbuja("bot", "Buscando fuera de tu biblioteca… tarda un minuto largo.", "typing");
+  if (boton) ocupado(boton, true, "Buscando…");
+  try {
+    const r = await api("/api/discover", {
+      method: "POST",
+      body: JSON.stringify({
+        ...parametros(),
+        query: current.query,
+        seeds: semillas,
+        exclude: current.tracks.map((t) => t.id),
+      }),
+    });
+    aviso.remove();
+    if (!r.tracks.length) {
+      burbuja("bot", `Se han mirado ${r.candidatos} temas nuevos y ninguno supera tu nota.`);
+      return;
+    }
+    // Se funden en una sola lista, marcando lo que no es tuyo.
+    const nuevas = r.tracks.map((t) => ({ ...t, nueva: true }));
+    current = {
+      ...current,
+      tracks: [...current.tracks, ...nuevas].sort((a, b) => b.score - a.score),
+      minutes: current.minutes + r.minutes,
+      descubiertas: nuevas.length,
+    };
+    mostrarResultado(current);
+  } catch (err) {
+    aviso.remove();
+    burbuja("bot", err.message);
+  } finally {
+    if (boton) ocupado(boton, false, "Explorar fuera");
+  }
+}
+
+$("descubrir").addEventListener("click", (e) => explorarFuera(e.currentTarget));
 
 /* ==================== escritura en Spotify ==================== */
 $("save").addEventListener("click", async (e) => {
