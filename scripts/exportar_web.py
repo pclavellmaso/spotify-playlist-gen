@@ -59,9 +59,10 @@ def exportar() -> None:
         (SALIDA / fichero).write_text(html)
         print(f"  {fichero}")
 
-    # Solo la hoja de estilos: los scripts hablan con una API que aqui no existe.
+    # Estilos y favicon: los scripts hablan con una API que aqui no existe.
     (SALIDA / "static").mkdir()
-    shutil.copy(RAIZ / "app" / "static" / "style.css", SALIDA / "static" / "style.css")
+    for recurso in ("style.css", "favicon.svg"):
+        shutil.copy(RAIZ / "app" / "static" / recurso, SALIDA / "static" / recurso)
 
     # Sin esto, Pages ignora lo que empiece por guion bajo.
     (SALIDA / ".nojekyll").write_text("")

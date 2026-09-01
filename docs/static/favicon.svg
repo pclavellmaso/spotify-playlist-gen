@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- El mismo diamante facetado de la marca, ensanchado para llenar el
+       cuadrado: a 16 px lo que se lee es la silueta, no el detalle.
+       Los cuatro planos son verdes, asi que se ve igual sobre pestana clara
+       que oscura y no hace falta fondo. -->
+  <polygon points="16,1 4,16 16,16" fill="#2ee87f"/>
+  <polygon points="16,1 28,16 16,16" fill="#1db954"/>
+  <polygon points="4,16 16,31 16,16" fill="#16a34a"/>
+  <polygon points="28,16 16,31 16,16" fill="#0d7c3a"/>
+</svg>
