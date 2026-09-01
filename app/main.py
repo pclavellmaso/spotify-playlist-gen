@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app.config import SCOPES, settings
 from app.db import Library
 from app.lastfm import LastfmClient, album_key, artist_key, merge
-from app.matcher import select
+from app.matcher import blend, profile_from_tracks, select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
 from app.tagger import BATCH_SIZE, Tagger, TaggingAborted
 from app.vibes import TAGGER_VERSION, VibeQuery
@@ -282,7 +282,9 @@ class GenerateRequest(BaseModel):
     limit: int = Field(default=30, ge=1, le=100)
     min_score: float = Field(default=55.0, ge=0, le=100)
     max_per_artist: int = Field(default=2, ge=1, le=10)
-    order: str = Field(default="flow", pattern="^(flow|score)$")
+    order: str = Field(default="rise", pattern="^(rise|fall|peak|score|flow)$")
+    target_minutes: int | None = Field(default=None, ge=5, le=600)
+    exclude: list[str] = Field(default_factory=list)
 
 
 def _selection(query: VibeQuery, req: Any) -> dict[str, Any]:
@@ -290,18 +292,24 @@ def _selection(query: VibeQuery, req: Any) -> dict[str, Any]:
     if not tracks:
         raise HTTPException(400, "No hay canciones etiquetadas. Sincroniza y etiqueta primero.")
 
+    excluir = set(req.exclude or [])
+    pool = [t for t in tracks if t["id"] not in excluir]
+
     picked = select(
-        tracks,
+        pool,
         query,
         limit=req.limit,
         min_score=req.min_score,
         max_per_artist=req.max_per_artist,
         order=req.order,
+        target_minutes=req.target_minutes,
     )
     return {
         "query": query.model_dump(),
-        "pool": len(tracks),
+        "pool": len(pool),
         "min_score": req.min_score,
+        "order": req.order,
+        "minutes": round(sum(t.get("duration_ms") or 0 for t in picked) / 60000),
         "tracks": [
             {
                 "id": t["id"],
@@ -335,7 +343,9 @@ class MoreRequest(BaseModel):
     limit: int = Field(default=40, ge=1, le=200)
     min_score: float = Field(default=0.0, ge=0, le=100)
     max_per_artist: int = Field(default=2, ge=1, le=10)
-    order: str = Field(default="flow", pattern="^(flow|score)$")
+    order: str = Field(default="rise", pattern="^(rise|fall|peak|score|flow)$")
+    target_minutes: int | None = Field(default=None, ge=5, le=600)
+    exclude: list[str] = Field(default_factory=list)
 
 
 @app.post("/api/more")
@@ -351,6 +361,82 @@ def more(req: MoreRequest) -> dict[str, Any]:
     en la lista existente daria un resultado distinto al de pedirlas de una vez.
     """
     return _selection(req.query, req)
+
+
+class ExtendRequest(BaseModel):
+    """Proponer canciones para una playlist que ya existe."""
+
+    playlist_id: str = Field(min_length=1)
+    prompt: str = Field(default="", description="Contexto extra, opcional")
+    source: str = "liked"
+    limit: int = Field(default=20, ge=1, le=100)
+    min_score: float = Field(default=55.0, ge=0, le=100)
+    max_per_artist: int = Field(default=2, ge=1, le=10)
+    order: str = Field(default="rise", pattern="^(rise|fall|peak|score|flow)$")
+    target_minutes: int | None = Field(default=None, ge=5, le=600)
+    exclude: list[str] = Field(default_factory=list)
+
+
+@app.post("/api/extend")
+def extend(req: ExtendRequest) -> dict[str, Any]:
+    """Busca canciones que peguen con una playlist que ya existe.
+
+    El nombre de una playlist es una pista pobre -"Piknik" o "b2b" no dicen
+    gran cosa-, asi que el objetivo sale del perfil medio de lo que ya tiene
+    dentro. Si ademas escribes algo, eso manda sobre el centroide en los ejes
+    que menciones: "como esta pero mas tranquilo" es la lista con la energia
+    cambiada, no una peticion desde cero.
+
+    No toca la playlist: devuelve la propuesta para que la revises.
+    """
+    dentro = spotify.playlist_tracks(req.playlist_id)
+    if not dentro:
+        raise HTTPException(400, "Esa playlist esta vacia o no se pudo leer")
+
+    ids_dentro = {t["id"] for t in dentro}
+    perfilados = [
+        t for t in library.tagged_tracks(req.source, TAGGER_VERSION) if t["id"] in ids_dentro
+    ]
+    nombre = spotify.playlist_name(req.playlist_id) or "esta lista"
+    if not perfilados:
+        raise HTTPException(
+            400,
+            f"Ninguna cancion de «{nombre}» esta analizada todavia. Analizala como "
+            "origen para poder usarla de referencia.",
+        )
+
+    query = profile_from_tracks(perfilados, label=nombre)
+    if req.prompt.strip():
+        try:
+            query = blend(query, _tagger().parse_query(req.prompt))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    # Lo que ya esta dentro no se vuelve a proponer.
+    req.exclude = list(ids_dentro | set(req.exclude))
+    body = _selection(query, req)
+    body["playlist"] = {"id": req.playlist_id, "name": nombre, "total": len(dentro)}
+    body["reference"] = len(perfilados)
+    # Se devuelve para que ampliar la busqueda pueda seguir excluyendo lo que
+    # ya esta dentro sin volver a leer la playlist de Spotify.
+    body["exclude"] = req.exclude
+    return body
+
+
+class AppendRequest(BaseModel):
+    playlist_id: str = Field(min_length=1)
+    track_ids: list[str] = Field(min_length=1)
+
+
+@app.post("/api/append")
+def append(req: AppendRequest) -> dict[str, Any]:
+    """Anade a una playlist existente, sin tocar lo que ya tiene."""
+    added = spotify.add_to_playlist(req.playlist_id, req.track_ids)
+    return {
+        "id": req.playlist_id,
+        "added": added,
+        "url": f"https://open.spotify.com/playlist/{req.playlist_id}",
+    }
 
 
 class SaveRequest(BaseModel):

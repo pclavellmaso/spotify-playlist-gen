@@ -196,3 +196,133 @@ def test_el_peso_gradua_el_castigo():
 
 def test_un_desajuste_pequenyo_apenas_penaliza():
     assert _score_axes(energy=40, valence=75, tempo_feel=35, warmth=80) > 90
+
+
+# -- forma de la curva ------------------------------------------------------
+def _energias(picked):
+    return [t["axes"]["energy"] for t in picked]
+
+
+def _pool(*energias):
+    salida = []
+    for i, e in enumerate(energias):
+        t = track(f"t{i}", artist=f"A{i}", confidence=100)
+        t["axes"]["energy"] = e
+        t["duration_ms"] = 180000  # tres minutos
+        salida.append(t)
+    return salida
+
+
+LIBRE = VibeQuery(label="x", targets={"valence": 50}, weights={"valence": 1.0})
+
+
+def test_la_curva_ascendente_empieza_floja():
+    picked = select(_pool(90, 20, 60, 40), LIBRE, min_score=0, order="rise", max_per_artist=1)
+    assert _energias(picked) == [20, 40, 60, 90]
+
+
+def test_la_curva_descendente_es_para_irse_a_la_cama():
+    picked = select(_pool(90, 20, 60, 40), LIBRE, min_score=0, order="fall", max_per_artist=1)
+    assert _energias(picked) == [90, 60, 40, 20]
+
+
+def test_la_curva_en_pico_sube_y_baja():
+    # Las mas intensas al centro, las flojas repartidas a los extremos.
+    picked = select(_pool(10, 30, 50, 70, 90), LIBRE, min_score=0, order="peak", max_per_artist=1)
+    energias = _energias(picked)
+    assert energias[0] < energias[len(energias) // 2] > energias[-1]
+    assert energias == [10, 50, 90, 70, 30]
+
+
+def test_flow_sigue_valiendo_como_ascendente():
+    a = select(_pool(90, 20, 60), LIBRE, min_score=0, order="flow", max_per_artist=1)
+    b = select(_pool(90, 20, 60), LIBRE, min_score=0, order="rise", max_per_artist=1)
+    assert _energias(a) == _energias(b)
+
+
+def test_ordenar_por_afinidad_ignora_la_energia():
+    picked = select(_pool(90, 20, 60), LIBRE, min_score=0, order="score", max_per_artist=1)
+    notas = [t["score"] for t in picked]
+    assert notas == sorted(notas, reverse=True)
+
+
+# -- duración objetivo ------------------------------------------------------
+def test_se_puede_pedir_por_minutos_en_vez_de_por_canciones():
+    # Canciones de 3 minutos: 20 minutos son 7 (la septima cruza el objetivo).
+    picked = select(_pool(*([50] * 20)), LIBRE, limit=100, min_score=0,
+                    max_per_artist=1, target_minutes=20)
+    assert len(picked) == 7
+
+
+def test_el_limite_sigue_siendo_un_tope_duro():
+    # Una duracion imposible no debe devolver la biblioteca entera.
+    picked = select(_pool(*([50] * 20)), LIBRE, limit=5, min_score=0,
+                    max_per_artist=1, target_minutes=600)
+    assert len(picked) == 5
+
+
+def test_sin_minutos_manda_el_numero_de_canciones():
+    picked = select(_pool(*([50] * 20)), LIBRE, limit=4, min_score=0, max_per_artist=1)
+    assert len(picked) == 4
+
+
+# -- perfil medio de una lista ("más como esto") ----------------------------
+from app.matcher import blend, profile_from_tracks  # noqa: E402
+
+
+def _perfilada(tid, energy, valence=50, conf=90, contexts=None, descriptors=None):
+    t = track(tid, artist=tid, confidence=conf, contexts=contexts, descriptors=descriptors)
+    t["axes"]["energy"] = energy
+    t["axes"]["valence"] = valence
+    return t
+
+
+def test_el_centroide_recoge_el_caracter_de_la_lista():
+    perfil = profile_from_tracks([_perfilada("a", 80), _perfilada("b", 84), _perfilada("c", 82)])
+    assert 80 <= perfil.targets["energy"] <= 84
+
+
+def test_un_eje_consistente_pesa_mas_que_uno_disperso():
+    # Si todas rondan energia 80, la energia define la lista. Si la valencia va
+    # de 10 a 90, no dice nada de ella.
+    perfil = profile_from_tracks([
+        _perfilada("a", 80, valence=10),
+        _perfilada("b", 82, valence=90),
+        _perfilada("c", 81, valence=50),
+    ])
+    assert perfil.weights["energy"] > perfil.weights["valence"]
+
+
+def test_las_canciones_que_el_modelo_no_conocia_arrastran_menos():
+    # La de confianza 10 tiene un perfil que es casi el prior del genero.
+    perfil = profile_from_tracks([_perfilada("a", 90, conf=100), _perfilada("b", 20, conf=10)])
+    assert perfil.targets["energy"] > 70
+
+
+def test_solo_entran_los_contextos_que_comparte_buena_parte_de_la_lista():
+    lista = [_perfilada(f"t{i}", 70, contexts=["fiesta"]) for i in range(4)]
+    lista.append(_perfilada("raro", 70, contexts=["dormir"]))
+    perfil = profile_from_tracks(lista)
+    assert "fiesta" in perfil.contexts and "dormir" not in perfil.contexts
+
+
+def test_una_lista_sin_analizar_no_da_perfil():
+    import pytest
+    with pytest.raises(ValueError, match="analizada"):
+        profile_from_tracks([{"id": "x", "artists": ["A"]}])
+
+
+# -- mezclar el perfil con una petición escrita -----------------------------
+def test_lo_que_pides_por_escrito_manda_sobre_el_centroide():
+    base = profile_from_tracks([_perfilada("a", 85), _perfilada("b", 85)])
+    encima = VibeQuery(label="mas tranquilo", targets={"energy": 30}, weights={"energy": 1.0})
+    mezcla = blend(base, encima)
+    assert mezcla.targets["energy"] == 30
+    assert mezcla.weights["energy"] == 1.0
+
+
+def test_los_ejes_que_no_mencionas_los_sigue_poniendo_la_lista():
+    base = profile_from_tracks([_perfilada("a", 85, valence=70), _perfilada("b", 85, valence=72)])
+    mezcla = blend(base, VibeQuery(label="x", targets={"energy": 30}))
+    assert 70 <= mezcla.targets["valence"] <= 72
+    assert mezcla.label == "x"

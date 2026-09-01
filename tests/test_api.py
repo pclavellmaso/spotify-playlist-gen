@@ -139,3 +139,73 @@ def test_una_sesion_caducada_devuelve_401(client, monkeypatch):
     res = client.post("/api/save", json={"name": "x", "track_ids": ["chill"]})
     assert res.status_code == 401
     assert "caduco" in res.json()["detail"]
+
+
+# -- ampliar una playlist existente -----------------------------------------
+def _dentro(*ids):
+    return [{"id": i, "name": i, "artists": ["X"], "source": "liked"} for i in ids]
+
+
+def test_extend_toma_como_objetivo_lo_que_ya_hay_dentro(client, monkeypatch):
+    # El nombre de una lista es una pista pobre: el objetivo sale del perfil
+    # medio de sus canciones.
+    monkeypatch.setattr(main.spotify, "playlist_tracks", lambda pid: _dentro("chill"))
+    monkeypatch.setattr(main.spotify, "playlist_name", lambda pid: "Piknik")
+    body = client.post("/api/extend", json={"playlist_id": "p1", "min_score": 0}).json()
+
+    assert body["playlist"]["name"] == "Piknik"
+    assert body["reference"] == 1
+    # El objetivo se parece a «chill», no a la media de la biblioteca.
+    assert body["query"]["targets"]["energy"] == 30
+    assert body["query"]["targets"]["warmth"] == 85
+
+
+def test_extend_no_propone_lo_que_la_lista_ya_tiene(client, monkeypatch):
+    monkeypatch.setattr(main.spotify, "playlist_tracks", lambda pid: _dentro("chill"))
+    monkeypatch.setattr(main.spotify, "playlist_name", lambda pid: "Piknik")
+    body = client.post("/api/extend", json={"playlist_id": "p1", "min_score": 0}).json()
+    assert "chill" not in [t["id"] for t in body["tracks"]]
+    assert "chill" in body["exclude"]
+
+
+def test_extend_avisa_si_la_lista_no_esta_analizada(client, monkeypatch):
+    monkeypatch.setattr(main.spotify, "playlist_tracks", lambda pid: _dentro("desconocida"))
+    monkeypatch.setattr(main.spotify, "playlist_name", lambda pid: "Rarezas")
+    res = client.post("/api/extend", json={"playlist_id": "p1"})
+    assert res.status_code == 400
+    assert "Rarezas" in res.json()["detail"]
+
+
+def test_extend_rechaza_una_lista_vacia(client, monkeypatch):
+    monkeypatch.setattr(main.spotify, "playlist_tracks", lambda pid: [])
+    assert client.post("/api/extend", json={"playlist_id": "p1"}).status_code == 400
+
+
+def test_append_escribe_en_la_lista_indicada(client, monkeypatch):
+    visto = {}
+    monkeypatch.setattr(main.spotify, "add_to_playlist",
+                        lambda pid, ids: visto.update(pid=pid, ids=ids) or len(ids))
+    body = client.post("/api/append",
+                       json={"playlist_id": "p9", "track_ids": ["chill", "hard"]}).json()
+    assert visto == {"pid": "p9", "ids": ["chill", "hard"]}
+    assert body["added"] == 2 and "p9" in body["url"]
+
+
+# -- duración y curva a través de la API ------------------------------------
+def test_se_puede_pedir_por_minutos(client):
+    body = client.post("/api/generate",
+                       json={"prompt": "calma en la piscina", "target_minutes": 5,
+                             "min_score": 0}).json()
+    assert body["minutes"] >= 3
+
+
+def test_la_curva_descendente_se_acepta(client):
+    res = client.post("/api/generate",
+                      json={"prompt": "calma en la piscina", "order": "fall", "min_score": 0})
+    assert res.status_code == 200 and res.json()["order"] == "fall"
+
+
+def test_una_curva_inventada_se_rechaza(client):
+    res = client.post("/api/generate",
+                      json={"prompt": "calma en la piscina", "order": "espiral"})
+    assert res.status_code == 422

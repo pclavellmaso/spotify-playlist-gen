@@ -217,25 +217,32 @@ class SpotifyClient:
                 "public": public,
             },
         )
-        # La API acepta 100 uris por llamada.
-        #
-        # `/tracks` quedo obsoleto el 11 de febrero de 2026 y devuelve 403, no
-        # un 404 ni un aviso de deprecacion, aunque los scopes esten concedidos.
-        # Como crear la playlist si funciona, el sintoma era una playlist vacia
-        # en la cuenta y un error sin explicacion. La ruta actual es `/items`.
-        for i in range(0, len(track_ids), 100):
-            chunk = track_ids[i : i + 100]
-            self._request(
-                "POST",
-                f"/playlists/{playlist['id']}/items",
-                json={"uris": [f"spotify:track:{tid}" for tid in chunk]},
-            )
+        self.add_to_playlist(playlist["id"], track_ids)
         return {
             "id": playlist["id"],
             "name": playlist["name"],
             "url": playlist.get("external_urls", {}).get("spotify"),
             "added": len(track_ids),
         }
+
+    def add_to_playlist(self, playlist_id: str, track_ids: list[str]) -> int:
+        """Anade canciones al final de una playlist existente.
+
+        `/tracks` quedo obsoleto el 11 de febrero de 2026 y devuelve 403, no un
+        404 ni un aviso de deprecacion, aunque los scopes esten concedidos. La
+        ruta actual es `/items`. La API acepta 100 uris por llamada.
+        """
+        for i in range(0, len(track_ids), 100):
+            chunk = track_ids[i : i + 100]
+            self._request(
+                "POST",
+                f"/playlists/{playlist_id}/items",
+                json={"uris": [f"spotify:track:{tid}" for tid in chunk]},
+            )
+        return len(track_ids)
+
+    def playlist_name(self, playlist_id: str) -> str:
+        return (self._request("GET", f"/playlists/{playlist_id}?fields=name") or {}).get("name", "")
 
 
 def _normalize(item: dict[str, Any], source: str) -> dict[str, Any] | None:

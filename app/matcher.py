@@ -6,9 +6,10 @@ asi que emparejar es una distancia ponderada mas unos ajustes.
 from __future__ import annotations
 
 import math
+import statistics
 from typing import Any
 
-from app.vibes import VibeQuery
+from app.vibes import AXES, VibeQuery
 
 # Cuanto pesa cada senyal en la nota final.
 W_AXES = 0.65
@@ -127,15 +128,28 @@ def _descriptor_score(
     return min(100.0, 55.0 + 22.5 * hits), False
 
 
+ORDERS = ("score", "rise", "fall", "peak")
+
+# `flow` era el unico modo de curva y equivalia a energia ascendente.
+ORDER_ALIASES = {"flow": "rise"}
+
+
 def select(
     tracks: list[dict[str, Any]],
     query: VibeQuery,
     limit: int = 30,
     min_score: float = 55.0,
     max_per_artist: int = 2,
-    order: str = "flow",
+    order: str = "rise",
+    target_minutes: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Puntua, filtra, diversifica y ordena la seleccion final."""
+    """Puntua, filtra, diversifica y ordena la seleccion final.
+
+    `target_minutes` manda sobre `limit` cuando se da: para un viaje o una
+    fiesta, la unidad util es el tiempo, no el numero de canciones. `limit`
+    sigue actuando como tope duro para que una duracion imposible no devuelva
+    la biblioteca entera.
+    """
     scored = []
     for track in tracks:
         score = score_track(track, query)
@@ -144,25 +158,135 @@ def select(
 
     scored.sort(key=lambda t: t["score"], reverse=True)
 
+    target_ms = target_minutes * 60_000 if target_minutes else None
+
+    def lleno(elegidas: list[dict[str, Any]], ms: int) -> bool:
+        if len(elegidas) >= limit:
+            return True
+        return target_ms is not None and ms >= target_ms
+
     # Sin el tope por artista, una peticion muy concreta devuelve el mismo disco
     # doce veces. Se rellena con los descartados si no se llega al limite.
     picked: list[dict[str, Any]] = []
     overflow: list[dict[str, Any]] = []
     per_artist: dict[str, int] = {}
+    total_ms = 0
     for track in scored:
+        if lleno(picked, total_ms):
+            break
         artist = (track["artists"] or ["?"])[0].lower()
         if per_artist.get(artist, 0) < max_per_artist:
             per_artist[artist] = per_artist.get(artist, 0) + 1
             picked.append(track)
+            total_ms += track.get("duration_ms") or 0
         else:
             overflow.append(track)
-        if len(picked) == limit:
-            break
-    if len(picked) < limit:
-        picked.extend(overflow[: limit - len(picked)])
 
-    if order == "flow":
-        # Una playlist de ambiente se escucha mejor como una curva de energia
-        # continua que como un ranking de afinidad.
-        picked.sort(key=lambda t: t.get("axes", {}).get("energy", 50))
-    return picked
+    for track in overflow:
+        if lleno(picked, total_ms):
+            break
+        picked.append(track)
+        total_ms += track.get("duration_ms") or 0
+
+    return _ordenar(picked, ORDER_ALIASES.get(order, order))
+
+
+def _ordenar(picked: list[dict[str, Any]], order: str) -> list[dict[str, Any]]:
+    """Una playlist de ambiente se escucha mejor como una curva continua de
+    energia que como un ranking de afinidad."""
+    if order == "score":
+        return sorted(picked, key=lambda t: t["score"], reverse=True)
+
+    energia = sorted(picked, key=lambda t: t.get("axes", {}).get("energy", 50))
+    if order == "fall":
+        return list(reversed(energia))
+    if order == "peak":
+        # Sube hasta el pico y baja: las de menos energia se reparten a los dos
+        # extremos y las mas intensas quedan en el centro.
+        subida, bajada = [], []
+        for i, track in enumerate(energia):
+            (subida if i % 2 == 0 else bajada).append(track)
+        return subida + list(reversed(bajada))
+    return energia
+
+
+def profile_from_tracks(
+    tracks: list[dict[str, Any]], label: str = "Mas como esto"
+) -> VibeQuery:
+    """Perfil medio de un conjunto de canciones ya etiquetadas.
+
+    Sirve para "mas como esto": en vez de adivinar el ambiente por el nombre de
+    una playlist -"Piknik" o "b2b" no dicen gran cosa- se lee lo que ya hay
+    dentro.
+
+    Dos decisiones:
+
+    - La media se pondera por `confidence`. Una cancion que el modelo no
+      reconocio tiene un perfil que es casi el prior del genero; dejarla
+      arrastrar el centroide seria mover el objetivo hacia la nada.
+    - El peso de cada eje sale de su dispersion. Si todas las canciones rondan
+      energia 80, la energia *define* la lista y debe pesar; si van de 20 a 95,
+      no dice nada de ella y debe pesar poco. Eso distingue un perfil real de
+      una media aritmetica sin sentido.
+    """
+    utiles = [t for t in tracks if t.get("axes")]
+    if not utiles:
+        raise ValueError("Ninguna de esas canciones esta analizada todavia")
+
+    pesos = [max(t.get("confidence", 50), 10) / 100 for t in utiles]
+    total = sum(pesos)
+
+    targets: dict[str, int] = {}
+    weights: dict[str, float] = {}
+    for axis in AXES:
+        valores = [t["axes"].get(axis, 50) for t in utiles]
+        media = sum(v * w for v, w in zip(valores, pesos)) / total
+        targets[axis] = round(media)
+        dispersion = statistics.pstdev(valores) if len(valores) > 1 else 0.0
+        # 35 puntos de desviacion es ya un eje que no caracteriza nada.
+        weights[axis] = round(max(0.15, min(1.0, 1 - dispersion / 35)), 2)
+
+    # Un contexto solo describe la lista si lo comparte buena parte de ella.
+    conteo: dict[str, int] = {}
+    for track in utiles:
+        for ctx in track.get("contexts", []):
+            conteo[ctx] = conteo.get(ctx, 0) + 1
+    contexts = [c for c, n in conteo.items() if n / len(utiles) >= 0.3]
+
+    desc: dict[str, int] = {}
+    for track in utiles:
+        for d in track.get("descriptors", []):
+            desc[d] = desc.get(d, 0) + 1
+    descriptors = [d for d, _ in sorted(desc.items(), key=lambda kv: -kv[1])[:5]]
+
+    return VibeQuery(
+        label=label,
+        targets=targets,
+        weights=weights,
+        contexts=sorted(contexts, key=lambda c: -conteo[c])[:2],
+        descriptors=descriptors,
+        notes=f"Perfil medio de {len(utiles)} canciones ya analizadas de la lista.",
+    )
+
+
+def blend(base: VibeQuery, encima: VibeQuery) -> VibeQuery:
+    """Deja que una peticion escrita mande sobre el perfil medio.
+
+    Lo que el usuario pide explicitamente pesa 1.0 y pisa al centroide en ese
+    eje; el resto de ejes los sigue aportando la lista, que es lo que da el
+    caracter. Asi "Piknik, pero mas tranquilo" es la lista con la energia
+    cambiada, no una peticion nueva desde cero.
+    """
+    targets = {**base.targets, **encima.targets}
+    weights = dict(base.weights)
+    for axis in encima.targets:
+        weights[axis] = float(encima.weights.get(axis, 1.0))
+    return VibeQuery(
+        label=encima.label or base.label,
+        targets=targets,
+        weights=weights,
+        contexts=encima.contexts or base.contexts,
+        descriptors=sorted({*base.descriptors, *encima.descriptors}),
+        avoid_descriptors=encima.avoid_descriptors,
+        notes=encima.notes or base.notes,
+    )
