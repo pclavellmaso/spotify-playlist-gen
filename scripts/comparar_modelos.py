@@ -1,9 +1,22 @@
-"""A/B entre el modelo local y Claude sobre las MISMAS canciones.
+"""Compara un modelo contra las etiquetas que ya hay en la base.
 
-Claude ya perfilo las 1788, asi que sirven de referencia. No se toca la base:
-esto solo lee.
+Responde a la pregunta que decide si merece la pena un modelo local: ¿sus
+perfiles se parecen a los buenos, o son ruido con otra cara?
+
+Lo que importa no es que acierte el valor exacto, sino la **correlacion**: si
+sus notas suben y bajan con las de referencia, el scorer sigue discriminando
+aunque esten desplazadas. Una correlacion cerca de cero significa que ese eje
+no aporta nada.
+
+    python scripts/comparar_modelos.py                    # 40 canciones, lotes de 10
+    python scripts/comparar_modelos.py 24 4 ollama qwen2.5:14b
+
+No se toca la base: esto solo lee.
 """
-import json, logging, math, random, statistics, sys, time
+import logging, math, random, statistics, sys, time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 from app.config import settings
@@ -15,6 +28,8 @@ from app.vibes import AXES, TAGGER_VERSION
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 40
 LOTE = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+PROVEEDOR = sys.argv[3] if len(sys.argv) > 3 else "ollama"
+MODELO = sys.argv[4] if len(sys.argv) > 4 else "qwen2.5:14b"
 
 library = Library(settings.db_path)
 todas = library.tagged_tracks("liked", TAGGER_VERSION)
@@ -32,7 +47,7 @@ for t in muestra:
                              cache.get(artist_key(a), []))
 
 referencia = {t["id"]: t for t in muestra}
-tagger = Tagger(build_model("ollama", "qwen2.5:14b"))
+tagger = Tagger(build_model(PROVEEDOR, MODELO))
 
 t0 = time.monotonic()
 local = {}
@@ -46,6 +61,9 @@ for lote in [muestra[i:i+LOTE] for i in range(0, len(muestra), LOTE)]:
 segundos = time.monotonic() - t0
 
 comunes = [i for i in referencia if i in local]
+if not comunes:
+    print("\nEl modelo no devolvio ni un perfil valido.")
+    raise SystemExit(1)
 print(f"\n=== {len(comunes)} de {N} perfiladas por el modelo local ===")
 print(f"tiempo: {segundos:.0f}s · {segundos/max(len(comunes),1):.1f}s por cancion")
 print(f"extrapolado a 1788: {segundos/max(len(comunes),1)*1788/3600:.1f} horas\n")
