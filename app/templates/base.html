@@ -9,14 +9,15 @@
 </head>
 <body>
 
-{# La aguja de una brújula entre dos barras de compás: los dos sentidos de la
-   palabra en una sola marca. #}
+{# Un diamante alargado y facetado: la aguja de la brújula vista de frente.
+   Cuatro planos con verdes distintos le dan el volumen sin sombras ni filtros,
+   así que aguanta a 20 píxeles y sobre cualquier fondo. #}
 {% macro marca(clase='') -%}
-<svg class="mark {{ clase }}" viewBox="0 0 36 32" aria-hidden="true">
-  <rect class="mark-bar" x="0" y="2" width="2.5" height="28"></rect>
-  <path class="mark-west" d="M18 3 L12 16 L18 29 Z"></path>
-  <path class="mark-east" d="M18 3 L24 16 L18 29 Z"></path>
-  <rect class="mark-bar" x="33.5" y="2" width="2.5" height="28"></rect>
+<svg class="mark {{ clase }}" viewBox="0 0 24 34" aria-hidden="true">
+  <polygon class="f-nw" points="12,1 1,14 12,14"></polygon>
+  <polygon class="f-ne" points="12,1 23,14 12,14"></polygon>
+  <polygon class="f-sw" points="1,14 12,33 12,14"></polygon>
+  <polygon class="f-se" points="23,14 12,33 12,14"></polygon>
 </svg>
 {%- endmacro %}
 
@@ -78,7 +79,6 @@
           <h4>Código</h4>
           <a href="https://github.com/pclavellmaso/spotify-playlist-gen" target="_blank" rel="noopener">Repositorio</a>
           <a href="/docs" target="_blank">Referencia de la API</a>
-          <a href="/metodo#limites">Alcance y límites</a>
         </div>
       </div>
     </div>

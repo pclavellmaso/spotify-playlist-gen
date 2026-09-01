@@ -15,102 +15,134 @@
       </p>
       <a id="gate-login" class="btn btn-primary btn-lg" href="/api/auth/login">Entrar con Spotify</a>
       <p class="gate-note">
-        ¿Todavía no lo has configurado? <a href="/guia">Sigue la guía de instalación</a>.
+        ¿Todavía no lo has configurado? <a href="/guia">Sigue la guía</a>.
       </p>
     </div>
   </section>
 
   <div id="studio" class="studio hidden">
 
-    <details id="libpanel" class="lib">
-      <summary>
-        <span class="lib-dot"></span>
-        <span id="libstats">Biblioteca</span>
-        <span class="lib-toggle">Gestionar</span>
-      </summary>
-      <div class="lib-body">
-        <div class="lib-row">
-          <div class="field grow">
-            <label for="source">Origen del catálogo</label>
-            <select id="source"><option value="liked">Canciones que te gustan</option></select>
-          </div>
-          <div class="field narrow">
-            <label for="taglimit">Analizar máx.</label>
-            <input id="taglimit" type="number" value="50" min="1" max="5000">
-          </div>
-          <button id="sync" class="btn btn-flat">Sincronizar</button>
-          <button id="tag" class="btn btn-flat">Analizar</button>
-        </div>
-        <div id="progress" class="progress hidden"><div id="bar"></div></div>
-        <p id="progtext" class="hint"></p>
-        <p id="tagdone" class="ok hidden"></p>
-        <p id="taberror" class="error hidden"></p>
-      </div>
-    </details>
+    {# La biblioteca no vive en el hilo: es un indicador discreto que abre su
+       propio panel. Al principio es lo primero que hay que hacer, y cuando ya
+       está todo perfilado deja de reclamar atención. #}
+    <button id="libchip" class="libchip" type="button">
+      <span id="libdot" class="libdot"></span>
+      <span id="libstats">Biblioteca</span>
+      <span class="libchip-go">Gestionar</span>
+    </button>
 
-    <div id="chat" class="thread">
-      <div class="welcome">
-        <span class="avatar avatar-lg"></span>
-        <h2>¿Qué momento tienes en mente?</h2>
-        <p>
-          Descríbelo como se lo contarías a alguien. También puedes pedir que
-          amplíe una lista que ya tengas.
-        </p>
-        <div id="chips" class="chips"></div>
+    <!-- ============ conversación ============ -->
+    <div id="chatview">
+      <div id="chat" class="thread">
+        <div class="welcome">
+          {{ marca("mark-xl") }}
+          <h2>¿Qué momento tienes en mente?</h2>
+          <p>Descríbelo como se lo contarías a alguien.</p>
+          <div id="chips" class="chips"></div>
+        </div>
+      </div>
+
+      <div class="dock">
+        <div class="composer">
+          <div id="extend-target" class="target hidden">
+            <label for="target">Ampliar</label>
+            <select id="target" class="sel"></select>
+          </div>
+
+          <textarea id="prompt" rows="1" placeholder="Describe el momento…"></textarea>
+
+          <div class="tools">
+            <div class="modes">
+              <button id="tab-new" class="mode is-on" type="button">Lista nueva</button>
+              <button id="tab-extend" class="mode" type="button">Ampliar una</button>
+            </div>
+
+            <div class="knobs">
+              <span class="knob">
+                <select id="sizemode" class="sel sel-bare">
+                  <option value="tracks">Canciones</option>
+                  <option value="minutes">Minutos</option>
+                </select>
+                <input id="limit" type="number" value="30" min="1" max="100">
+              </span>
+              <span class="knob">
+                <select id="order" class="sel sel-bare" title="Forma de la curva de energía">
+                  <option value="rise">Curva ascendente</option>
+                  <option value="fall">Curva descendente</option>
+                  <option value="peak">Curva en pico</option>
+                  <option value="score">Sin curva</option>
+                </select>
+              </span>
+              <span class="knob knob-num" title="Nota mínima para entrar en la lista">
+                <label for="minscore">Exigencia</label>
+                <input id="minscore" type="number" value="55" min="0" max="100">
+              </span>
+              <span class="knob knob-num" title="Tope de canciones por artista">
+                <label for="maxartist">Máx./artista</label>
+                <input id="maxartist" type="number" value="2" min="1" max="10">
+              </span>
+            </div>
+
+            <button id="generate" class="send" type="button" aria-label="Generar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="dock">
-      <div class="composer">
-        <div id="extend-target" class="target hidden">
-          <label for="target">Ampliar</label>
-          <select id="target"></select>
-        </div>
-
-        <textarea id="prompt" rows="1" placeholder="Describe el momento…"></textarea>
-
-        <div class="tools">
-          <div class="modes">
-            <button id="tab-new" class="mode is-on" type="button">Lista nueva</button>
-            <button id="tab-extend" class="mode" type="button">Ampliar una</button>
-          </div>
-
-          <div class="knobs">
-            <span class="knob">
-              <select id="sizemode">
-                <option value="tracks">Canciones</option>
-                <option value="minutes">Minutos</option>
-              </select>
-              <input id="limit" type="number" value="30" min="1" max="100">
-            </span>
-            <span class="knob">
-              <select id="order" title="Forma de la curva de energía">
-                <option value="rise">Curva ascendente</option>
-                <option value="fall">Curva descendente</option>
-                <option value="peak">Curva en pico</option>
-                <option value="score">Sin curva</option>
-              </select>
-            </span>
-            <span class="knob knob-num" title="Nota mínima para entrar en la lista">
-              <label for="minscore">Exigencia</label>
-              <input id="minscore" type="number" value="55" min="0" max="100">
-            </span>
-            <span class="knob knob-num" title="Tope de canciones por artista">
-              <label for="maxartist">Máx./artista</label>
-              <input id="maxartist" type="number" value="2" min="1" max="10">
-            </span>
-          </div>
-
-          <button id="generate" class="send" type="button" aria-label="Generar">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13M12 5l7 7-7 7"/></svg>
-          </button>
+    <!-- ============ resultado, a solas ============ -->
+    <section id="resultview" class="resultview hidden">
+      <div class="rv-bar">
+        <button id="back" class="btn btn-flat btn-sm" type="button">← Volver</button>
+        <div class="rv-title">
+          <h2 id="rv-name"></h2>
+          <span id="rv-meta" class="rv-meta"></span>
         </div>
       </div>
-      <p class="dock-note">
-        Las peticiones se interpretan con un modelo; la selección se calcula sin él.
-      </p>
-    </div>
+      <p id="rv-notes" class="rv-notes"></p>
+      <ol id="tracks" class="tracks"></ol>
+      <div class="rv-actions">
+        <button id="more" class="btn btn-flat" type="button">Ampliar la búsqueda</button>
+        <span class="rv-spacer"></span>
+        <input id="plname" class="rv-name-input" placeholder="Nombre de la playlist">
+        <button id="save" class="btn btn-primary" type="button">Crear en Spotify</button>
+        <button id="append" class="btn btn-primary hidden" type="button">Añadir</button>
+      </div>
+      <p id="saved" class="ok"></p>
+    </section>
   </div>
+
+  <!-- ============ panel de biblioteca ============ -->
+  <dialog id="libdialog" class="sheet">
+    <div class="sheet-head">
+      <h2>Biblioteca</h2>
+      <button id="libclose" class="sheet-x" type="button" aria-label="Cerrar">✕</button>
+    </div>
+    <p class="sheet-help">
+      Perfilar es lo único que cuesta dinero, y cada canción se analiza una sola
+      vez. Empieza con pocas y comprueba el resultado antes del barrido completo.
+    </p>
+    <div class="sheet-row">
+      <div class="field grow">
+        <label for="source">Origen</label>
+        <select id="source" class="sel"><option value="liked">Canciones que te gustan</option></select>
+      </div>
+      <div class="field narrow">
+        <label for="taglimit">Máximo</label>
+        <input id="taglimit" type="number" value="50" min="1" max="5000">
+      </div>
+    </div>
+    <div class="sheet-row">
+      <button id="sync" class="btn btn-flat" type="button">Sincronizar</button>
+      <button id="tag" class="btn btn-primary" type="button">Analizar</button>
+    </div>
+    <div id="progress" class="progress hidden"><div id="bar"></div></div>
+    <p id="progtext" class="hint"></p>
+    <p id="libdetail" class="hint"></p>
+    <p id="tagdone" class="ok hidden"></p>
+    <p id="taberror" class="error hidden"></p>
+  </dialog>
 </main>
 {% endblock %}
 

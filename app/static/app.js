@@ -5,6 +5,13 @@ let current = null;   // última selección devuelta por la API
 let modo = "new";     // "new" | "extend"
 let yo = "";          // nombre de usuario, para no ofrecer listas ajenas
 
+const MARCA = `<svg class="mark" viewBox="0 0 24 34" aria-hidden="true">
+  <polygon class="f-nw" points="12,1 1,14 12,14"></polygon>
+  <polygon class="f-ne" points="12,1 23,14 12,14"></polygon>
+  <polygon class="f-sw" points="1,14 12,33 12,14"></polygon>
+  <polygon class="f-se" points="23,14 12,33 12,14"></polygon>
+</svg>`;
+
 const EJEMPLOS = [
   "resaca de domingo con las persianas bajadas",
   "conduciendo de noche por la costa",
@@ -35,23 +42,24 @@ async function api(path, options = {}) {
   return body;
 }
 
+function ocupado(el, estado, etiqueta) {
+  el.disabled = estado;
+  if (etiqueta) el.textContent = etiqueta;
+}
+
 /* ==================== arranque ==================== */
 (async () => {
   const estado = await window.CompasChrome;
   if (!estado.configured) {
     show($("gate"), true);
-    $("gate-msg").innerHTML =
-      "Todavía falta el Client ID de Spotify. Se rellena desde el navegador, " +
-      "sin tocar ningún fichero.";
+    $("gate-msg").textContent =
+      "Todavía falta el Client ID de Spotify. Se rellena desde el navegador, sin tocar ficheros.";
     const ir = $("gate-login");
     ir.textContent = "Ir a los ajustes";
     ir.href = "/ajustes";
     return;
   }
-  if (!estado.connected) {
-    show($("gate"), true);
-    return;
-  }
+  if (!estado.connected) { show($("gate"), true); return; }
 
   yo = estado.user || "";
   show($("studio"), true);
@@ -61,6 +69,11 @@ async function api(path, options = {}) {
 })();
 
 /* ==================== biblioteca ==================== */
+const dialogo = $("libdialog");
+$("libchip").addEventListener("click", () => dialogo.showModal());
+$("libclose").addEventListener("click", () => dialogo.close());
+dialogo.addEventListener("click", (e) => { if (e.target === dialogo) dialogo.close(); });
+
 async function cargarListas() {
   if ($("source").options.length > 1) return;
   try {
@@ -85,7 +98,14 @@ async function cargarListas() {
 
 async function refrescar() {
   const s = await api(`/api/stats?source=${encodeURIComponent($("source").value)}`);
-  $("libstats").textContent =
+
+  // El indicador sólo insiste cuando queda trabajo por hacer.
+  $("libstats").textContent = s.pending
+    ? `${s.pending} canciones sin perfilar`
+    : `${s.tagged} canciones perfiladas`;
+  $("libdot").classList.toggle("libdot-pending", Boolean(s.pending));
+  $("libchip").classList.toggle("libchip-quiet", !s.pending);
+  $("libdetail").textContent =
     `${s.tagged} de ${s.total} perfiladas · ${s.pending} pendientes`;
 
   const job = s.job || {};
@@ -98,8 +118,8 @@ async function refrescar() {
     $("bar").style.width = `${Math.round((job.done / job.total) * 100)}%`;
     $("bar").classList.add("working");
     $("progtext").textContent =
-      `Lote ${job.batch + 1} de ${job.batches} · ${job.done} de ${job.total} perfiladas`;
-    $("libpanel").open = true;
+      `Lote ${job.batch + 1} de ${job.batches} · ${job.done} de ${job.total}`;
+    $("libstats").textContent = `Perfilando… ${job.done} de ${job.total}`;
     setTimeout(refrescar, 2500);
   } else {
     $("progtext").textContent = "";
@@ -111,16 +131,11 @@ async function refrescar() {
 
   $("taberror").textContent = job.error || "";
   show($("taberror"), Boolean(job.error));
-  if (job.error) $("libpanel").open = true;
+  if (job.error && !dialogo.open) dialogo.showModal();
   return s;
 }
 
 $("source").addEventListener("change", refrescar);
-
-function ocupado(el, estado, etiqueta) {
-  el.disabled = estado;
-  if (etiqueta) el.textContent = etiqueta;
-}
 
 $("sync").addEventListener("click", async (e) => {
   ocupado(e.target, true, "Sincronizando…");
@@ -152,10 +167,9 @@ function setModo(nuevo) {
   $("tab-new").classList.toggle("is-on", modo === "new");
   $("tab-extend").classList.toggle("is-on", modo === "extend");
   show($("extend-target"), modo === "extend");
-  $("prompt").placeholder =
-    modo === "extend"
-      ? "Opcional: cómo quieres que varíe. «más tranquilo», «menos voces»…"
-      : "Describe el momento…";
+  $("prompt").placeholder = modo === "extend"
+    ? "Opcional: cómo quieres que varíe. «más tranquilo», «menos voces»…"
+    : "Describe el momento…";
 }
 $("tab-new").addEventListener("click", () => setModo("new"));
 $("tab-extend").addEventListener("click", () => setModo("extend"));
@@ -182,7 +196,6 @@ setInterval(() => {
   $("prompt").placeholder = EJEMPLOS[iEjemplo];
 }, 4200);
 
-/* El campo crece con el texto, como cualquier redactor decente. */
 $("prompt").addEventListener("input", (e) => {
   e.target.style.height = "auto";
   e.target.style.height = `${Math.min(e.target.scrollHeight, 190)}px`;
@@ -192,18 +205,16 @@ $("prompt").addEventListener("keydown", (e) => {
 });
 
 /* ==================== conversación ==================== */
-function limpiarBienvenida() {
-  const w = document.querySelector(".welcome");
-  if (w) w.remove();
-}
-
 function burbuja(quien, contenido, clase = "") {
-  limpiarBienvenida();
+  const bienvenida = document.querySelector(".welcome");
+  if (bienvenida) bienvenida.remove();
+
   const msg = document.createElement("div");
   msg.className = `msg msg-${quien}`;
   if (quien === "bot") {
     const av = document.createElement("span");
     av.className = "avatar";
+    av.innerHTML = MARCA;
     msg.append(av);
   }
   const bubble = document.createElement("div");
@@ -281,7 +292,7 @@ $("generate").addEventListener("click", async (e) => {
     current = r;
     pensando.remove();
     burbuja("bot", interpretacion(r));
-    pintarResultado(r);
+    mostrarResultado(r);
     $("prompt").value = "";
     $("prompt").style.height = "auto";
   } catch (err) {
@@ -292,31 +303,42 @@ $("generate").addEventListener("click", async (e) => {
   }
 });
 
-/* ==================== resultado ==================== */
-function pintarResultado(result) {
-  // Sólo el último bloque conserva acciones: dejar botones vivos en respuestas
-  // antiguas invita a guardar una selección que ya no es la que se ve.
-  document.querySelectorAll(".result-actions, .saved").forEach((el) => el.remove());
+/* ==================== resultado, a solas ==================== */
+// Con la lista delante, el hilo y el redactor sólo compiten por la atención.
+// Se aparta todo y se vuelve con el botón.
+function verChat() {
+  show($("chatview"), true);
+  show($("resultview"), false);
+  show($("libchip"), true);
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" });
+  $("prompt").focus();
+}
+$("back").addEventListener("click", verChat);
 
-  const caja = document.createElement("section");
-  caja.className = "result";
+function mostrarResultado(result) {
+  show($("chatview"), false);
+  show($("libchip"), false);
+  show($("resultview"), true);
+  $("saved").textContent = "";
 
-  const head = document.createElement("div");
-  head.className = "result-head";
-  head.innerHTML =
-    `<h3></h3><span class="result-meta"></span>`;
-  head.querySelector("h3").textContent = result.query.label || "Selección";
+  $("rv-name").textContent = result.query.label || "Selección";
   const partes = [
     `${result.tracks.length} de ${result.pool}`,
     `${result.minutes} min`,
     `exigencia ${result.min_score}`,
   ];
   if (result.reference) partes.push(`referencia ${result.reference}`);
-  head.querySelector(".result-meta").textContent = partes.join(" · ");
-  caja.append(head);
+  $("rv-meta").textContent = partes.join(" · ");
+  $("rv-notes").textContent = result.query.notes || "";
 
-  const lista = document.createElement("ol");
-  lista.className = "tracks";
+  const ampliando = Boolean(result.playlist);
+  show($("plname"), !ampliando);
+  show($("save"), !ampliando);
+  show($("append"), ampliando);
+  if (ampliando) $("append").textContent = `Añadir a «${result.playlist.name}»`;
+  else $("plname").value = result.query.label || "";
+
+  $("tracks").innerHTML = "";
   for (const t of result.tracks) {
     const li = document.createElement("li");
     const info = document.createElement("div");
@@ -331,72 +353,22 @@ function pintarResultado(result) {
     nota.className = "score";
     nota.textContent = t.score;
     li.append(info, nota);
-    lista.append(li);
+    $("tracks").append(li);
   }
-  caja.append(lista);
 
   if (!result.tracks.length) {
-    const vacio = document.createElement("p");
-    vacio.className = "hint";
-    vacio.style.padding = "0 20px 16px";
-    vacio.textContent = "Nada superó la exigencia. Bájala o amplía la búsqueda.";
-    caja.append(vacio);
+    $("rv-notes").textContent += " — nada superó la exigencia. Bájala o amplía la búsqueda.";
   }
-
-  caja.append(acciones(result));
-  const guardado = document.createElement("p");
-  guardado.className = "saved";
-  caja.append(guardado);
-
-  const msg = document.createElement("div");
-  msg.className = "msg msg-bot";
-  msg.append(Object.assign(document.createElement("span"), { className: "avatar" }), caja);
-  $("chat").append(msg);
-  msg.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-function acciones(result) {
-  const barra = document.createElement("div");
-  barra.className = "result-actions";
-
-  const mas = document.createElement("button");
-  mas.className = "btn btn-flat btn-sm";
-  mas.textContent = "Ampliar la búsqueda";
-  show(mas, !(result.min_score <= 0 && result.tracks.length < result.limitPedido));
-  mas.addEventListener("click", () => ampliar(mas));
-  barra.append(mas);
-
-  if (result.playlist) {
-    const anadir = document.createElement("button");
-    anadir.className = "btn btn-primary btn-sm";
-    anadir.textContent = `Añadir a «${result.playlist.name}»`;
-    anadir.addEventListener("click", () => anadirALista(anadir, barra));
-    barra.append(anadir);
-  } else {
-    const nombre = document.createElement("input");
-    nombre.id = "plname";
-    nombre.placeholder = "Nombre de la playlist";
-    nombre.value = result.query.label || "";
-    const crear = document.createElement("button");
-    crear.className = "btn btn-primary btn-sm";
-    crear.textContent = "Crear en Spotify";
-    crear.addEventListener("click", () => crearLista(crear, nombre, barra));
-    barra.append(nombre, crear);
-  }
-  return barra;
-}
-
-function avisar(barra, html) {
-  const p = barra.parentElement.querySelector(".saved");
-  if (p) p.innerHTML = html;
+  show($("more"), !(result.min_score <= 0 && result.tracks.length < result.limitPedido));
+  window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 // Con una biblioteca sesgada, una petición alejada de su centro deja casi todo
 // por debajo de la exigencia. En vez de dejar al usuario ajustando el número a
 // mano, se baja el listón por pasos sobre lo que ya hay en pantalla.
-async function ampliar(boton) {
+$("more").addEventListener("click", async (e) => {
   if (!current) return;
-  ocupado(boton, true, "Buscando…");
+  ocupado(e.target, true, "Buscando…");
   const antes = current.tracks.length;
   try {
     const r = await api("/api/more", {
@@ -410,35 +382,38 @@ async function ampliar(boton) {
         exclude: current.exclude || [],
       }),
     });
-    current = { ...r, limitPedido: antes + 10, exclude: current.exclude, playlist: current.playlist, reference: current.reference };
-    pintarResultado(current);
+    current = { ...r, limitPedido: antes + 10, exclude: current.exclude,
+                playlist: current.playlist, reference: current.reference };
+    mostrarResultado(current);
     if (current.tracks.length === antes) {
-      burbuja("bot", "No queda nada más en tu biblioteca que encaje con esto.");
+      $("saved").textContent = "No queda nada más en tu biblioteca que encaje con esto.";
     }
   } catch (err) { alert(err.message); }
-  finally { ocupado(boton, false, "Ampliar la búsqueda"); }
-}
+  finally { ocupado(e.target, false, "Ampliar la búsqueda"); }
+});
 
-async function crearLista(boton, campoNombre, barra) {
+/* ==================== escritura en Spotify ==================== */
+$("save").addEventListener("click", async (e) => {
   if (!current || !current.tracks.length) return;
-  ocupado(boton, true, "Creando…");
+  ocupado(e.target, true, "Creando…");
   try {
     const r = await api("/api/save", {
       method: "POST",
       body: JSON.stringify({
-        name: campoNombre.value || current.query.label,
+        name: $("plname").value || current.query.label,
         description: (current.query.notes || "").slice(0, 300),
         track_ids: current.tracks.map((t) => t.id),
       }),
     });
-    avisar(barra, `Creada con ${r.added} canciones · <a href="${r.url}" target="_blank" rel="noopener">abrir en Spotify</a>`);
+    $("saved").innerHTML =
+      `Creada con ${r.added} canciones · <a href="${r.url}" target="_blank" rel="noopener">abrir en Spotify</a>`;
   } catch (err) { alert(err.message); }
-  finally { ocupado(boton, false, "Crear en Spotify"); }
-}
+  finally { ocupado(e.target, false, "Crear en Spotify"); }
+});
 
-async function anadirALista(boton, barra) {
+$("append").addEventListener("click", async (e) => {
   if (!current || !current.tracks.length || !current.playlist) return;
-  ocupado(boton, true, "Añadiendo…");
+  ocupado(e.target, true, "Añadiendo…");
   try {
     const r = await api("/api/append", {
       method: "POST",
@@ -447,7 +422,9 @@ async function anadirALista(boton, barra) {
         track_ids: current.tracks.map((t) => t.id),
       }),
     });
-    avisar(barra, `${r.added} canciones añadidas a «${current.playlist.name}» · <a href="${r.url}" target="_blank" rel="noopener">abrir en Spotify</a>`);
+    $("saved").innerHTML =
+      `${r.added} canciones añadidas a «${current.playlist.name}» · ` +
+      `<a href="${r.url}" target="_blank" rel="noopener">abrir en Spotify</a>`;
   } catch (err) { alert(err.message); }
-  finally { ocupado(boton, false, `Añadir a «${current.playlist.name}»`); }
-}
+  finally { ocupado(e.target, false, `Añadir a «${current.playlist.name}»`); }
+});
