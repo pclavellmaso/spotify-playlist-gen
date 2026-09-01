@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Protocol, TypeVar
+from typing import Any, NamedTuple, Protocol, TypeVar
 
 import httpx2 as httpx
 from pydantic import BaseModel, ValidationError
@@ -45,8 +45,50 @@ class LLMError(RuntimeError):
         self.causa = causa
 
 
+class Calibracion(NamedTuple):
+    """Cuanto hay que rebajar la confianza que declara un modelo.
+
+    El etiquetador pide a cada modelo que diga cuanto se sostiene el perfil que
+    acaba de dar, y el scorer usa ese numero para decidir cuanto arrastrar la
+    cancion hacia el punto neutro. Todo el mecanismo de seguridad depende de que
+    esa confianza este calibrada.
+
+    Y no lo esta en todos. Medido sobre las mismas canciones contra un perfilado
+    de referencia: qwen2.5 de 14B declara 63.8 de media donde la referencia dice
+    44.5, y ademas acierta menos -tres de siete ejes con correlacion por debajo
+    de 0.5, y `tempo_feel` directamente descorrelacionado-. Es decir, mas seguro
+    y peor: justo la combinacion que desarma la red.
+
+    El factor lleva la media al sitio; el techo evita que un modelo pequeno
+    declare certeza absoluta sobre un tema que no ha oido en su vida.
+    """
+
+    factor: float = 1.0
+    techo: int = 100
+
+    def aplicar(self, confianza: int) -> int:
+        return max(0, min(self.techo, round(confianza * self.factor)))
+
+
+SIN_AJUSTE = Calibracion()
+
+# Los servidores locales son donde viven los modelos pequenos. En las pasarelas
+# -OpenRouter, Groq- el modelo lo elige el usuario, asi que no se presume nada.
+LOCAL = Calibracion(factor=0.65, techo=55)
+
+CALIBRACIONES = {
+    "anthropic": SIN_AJUSTE,
+    "openai": SIN_AJUSTE,
+    "openrouter": SIN_AJUSTE,
+    "groq": SIN_AJUSTE,
+    "ollama": LOCAL,
+    "lmstudio": LOCAL,
+}
+
+
 class Modelo(Protocol):
     nombre: str
+    calibracion: Calibracion
 
     def parse(self, system: str, user: str, esquema: type[T], max_tokens: int) -> T | None:
         """Devuelve una instancia del esquema, o None si la respuesta es ilegible."""
@@ -56,6 +98,8 @@ class Modelo(Protocol):
 # Anthropic
 # --------------------------------------------------------------------------
 class AnthropicModel:
+    calibracion = SIN_AJUSTE
+
     def __init__(self, modelo: str, api_key: str = "", cliente: Any = None):
         import anthropic
 
@@ -118,7 +162,9 @@ class AnthropicModel:
 # Dialecto OpenAI: OpenAI, OpenRouter, Groq, LM Studio, Ollama…
 # --------------------------------------------------------------------------
 class OpenAIModel:
-    def __init__(self, modelo: str, base_url: str, api_key: str = ""):
+    def __init__(self, modelo: str, base_url: str, api_key: str = "",
+                 calibracion: Calibracion = SIN_AJUSTE):
+        self.calibracion = calibracion
         self.nombre = modelo
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -240,7 +286,8 @@ def build_model(proveedor: str, modelo: str, api_key: str = "", base_url: str = 
     if proveedor == "anthropic":
         return AnthropicModel(modelo, api_key)
     if proveedor in PRESETS or base_url:
-        return OpenAIModel(modelo, base_url or PRESETS[proveedor], api_key)
+        return OpenAIModel(modelo, base_url or PRESETS[proveedor], api_key,
+                           CALIBRACIONES.get(proveedor, SIN_AJUSTE))
     raise LLMError(
         f"Proveedor '{proveedor}' desconocido. Usa uno de: anthropic, "
         f"{', '.join(PRESETS)}; o indica AI_BASE_URL.",

@@ -124,6 +124,11 @@ class Tagger:
             log.warning("El modelo no devolvio un lote valido; se omite")
             return []
 
+        # La confianza declarada se corrige segun el proveedor: es el numero del
+        # que depende que el scorer arrastre o no una cancion hacia el neutro, y
+        # los modelos pequenos lo inflan justo cuando menos aciertan.
+        ajuste = getattr(self.model, "calibracion", None)
+
         known = {t["id"] for t in tracks}
         # El modelo puede alucinar un id o repetir uno: quedarse solo con los pedidos.
         seen: set[str] = set()
@@ -131,6 +136,8 @@ class Tagger:
         for vibe in parsed.tracks:
             if vibe.track_id in known and vibe.track_id not in seen:
                 seen.add(vibe.track_id)
+                if ajuste is not None:
+                    vibe.confidence = ajuste.aplicar(vibe.confidence)
                 out.append(vibe)
         missing = len(tracks) - len(out)
         if missing:

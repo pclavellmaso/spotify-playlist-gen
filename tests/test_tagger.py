@@ -189,3 +189,21 @@ def test_una_peticion_sin_nada_aprovechable_se_rechaza():
 def test_una_respuesta_ilegible_se_rechaza():
     with pytest.raises(ValueError, match="No se pudo interpretar"):
         _tagger([None]).parse_query("lo que sea")
+
+
+# -- la calibracion llega a las etiquetas -----------------------------------
+class FakeModelCalibrado(FakeModel):
+    from app.llm import Calibracion
+    calibracion = Calibracion(factor=0.5, techo=40)
+
+
+def test_la_confianza_se_corrige_al_etiquetar():
+    modelo = FakeModelCalibrado([TrackVibeBatch(tracks=[_vibe("t0")])])
+    vibes = Tagger(modelo).tag_batch(TRACKS[:1])
+    # _vibe declara 70; con factor 0.5 y techo 40 se queda en 35.
+    assert vibes[0].confidence == 35
+
+
+def test_sin_calibracion_la_confianza_pasa_intacta():
+    vibes = _tagger([TrackVibeBatch(tracks=[_vibe("t0")])]).tag_batch(TRACKS[:1])
+    assert vibes[0].confidence == 70

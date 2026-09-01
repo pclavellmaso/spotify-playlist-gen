@@ -143,3 +143,25 @@ def test_un_proveedor_desconocido_sin_url_se_rechaza():
     with pytest.raises(LLMError) as exc:
         build_model("inventado", "m")
     assert exc.value.permanent and "AI_BASE_URL" in exc.value.human
+
+
+# -- calibracion de la confianza --------------------------------------------
+def test_los_proveedores_de_frontera_no_se_tocan():
+    assert build_model("anthropic", "claude-opus-5").calibracion.aplicar(90) == 90
+    assert build_model("openai", "gpt-4.1-mini").calibracion.aplicar(90) == 90
+
+
+def test_un_modelo_local_ve_recortada_su_confianza():
+    # Declaraba 64 de media donde la referencia decia 44: mas seguro y peor.
+    local = build_model("ollama", "qwen2.5:14b").calibracion
+    assert local.aplicar(64) < 50
+    assert local.aplicar(100) == 55, "y nunca certeza absoluta"
+
+
+def test_la_calibracion_no_baja_de_cero():
+    assert build_model("ollama", "m").calibracion.aplicar(0) == 0
+
+
+def test_una_pasarela_no_presume_nada_del_modelo():
+    # En OpenRouter o Groq el modelo lo elige el usuario.
+    assert build_model("openrouter", "lo-que-sea").calibracion.aplicar(90) == 90

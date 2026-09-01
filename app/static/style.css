@@ -689,3 +689,4 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: var(--a
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--accent); font-weight: 500;
 }
+.conf-nota { padding-left: 14px; border-left: 2px solid rgba(29,185,84,.35); font-size: 13.5px; }
