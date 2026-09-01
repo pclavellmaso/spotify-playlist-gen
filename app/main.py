@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi import Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app.config import SCOPES, settings
@@ -24,6 +26,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 log = logging.getLogger("playlist-gen")
 
 STATIC = Path(__file__).parent / "static"
+templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 app = FastAPI(title="Spotify vibe playlists")
 library = Library(settings.db_path)
@@ -95,9 +98,37 @@ def explain_spotify(exc: SpotifyError) -> str:
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
+PAGINAS = {
+    "/": ("index.html", "inicio"),
+    "/metodo": ("metodo.html", "metodo"),
+    "/guia": ("guia.html", "guia"),
+    "/app": ("app.html", "app"),
+}
+
+
+def _pagina(request: Request, ruta: str):
+    plantilla, nombre = PAGINAS[ruta]
+    return templates.TemplateResponse(request, plantilla, {"page": nombre})
+
+
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+def inicio(request: Request):
+    return _pagina(request, "/")
+
+
+@app.get("/metodo")
+def metodo(request: Request):
+    return _pagina(request, "/metodo")
+
+
+@app.get("/guia")
+def guia(request: Request):
+    return _pagina(request, "/guia")
+
+
+@app.get("/app")
+def estudio(request: Request):
+    return _pagina(request, "/app")
 
 
 # -- auth -------------------------------------------------------------------
@@ -139,7 +170,7 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
         # Sin state valido no se puede distinguir de un CSRF.
         raise HTTPException(400, "Respuesta de OAuth invalida, reinicia la conexion")
     spotify.exchange_code(code, verifier)
-    return RedirectResponse("/?connected=1")
+    return RedirectResponse("/app")
 
 
 @app.post("/api/auth/logout")

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Compás{% endblock %}</title>
+  <meta name="description" content="{% block description %}Playlists por momento a partir de tu propia biblioteca de Spotify. Software local.{% endblock %}">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+{# La aguja de una brújula entre dos barras de compás: los dos sentidos de la
+   palabra en una sola marca. #}
+{% macro marca(clase='') -%}
+<svg class="mark {{ clase }}" viewBox="0 0 36 32" aria-hidden="true">
+  <rect class="mark-bar" x="0" y="2" width="2.5" height="28"></rect>
+  <path class="mark-west" d="M18 3 L12 16 L18 29 Z"></path>
+  <path class="mark-east" d="M18 3 L24 16 L18 29 Z"></path>
+  <rect class="mark-bar" x="33.5" y="2" width="2.5" height="28"></rect>
+</svg>
+{%- endmacro %}
+
+<header class="chrome">
+  <div class="pill pill-nav">
+    <a class="brand" href="/">
+      {{ marca() }}
+      <span class="brand-name">Compás</span>
+    </a>
+    <nav class="links">
+      <a href="/" class="{{ 'on' if page == 'inicio' }}">Producto</a>
+      <a href="/metodo" class="{{ 'on' if page == 'metodo' }}">Método</a>
+      <a href="/guia" class="{{ 'on' if page == 'guia' }}">Guía</a>
+    </nav>
+  </div>
+
+  <div class="pill pill-session">
+    <span id="whoami" class="whoami hidden"></span>
+    <button id="logout" class="btn btn-flat btn-sm hidden">Salir</button>
+    <a id="login" class="btn btn-primary btn-sm hidden" href="/api/auth/login">Entrar con Spotify</a>
+    <a id="openapp" class="btn btn-primary btn-sm hidden" href="/app">Abrir Compás</a>
+  </div>
+</header>
+
+{% block body %}{% endblock %}
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-lead">
+        <p class="footer-claim">
+          Mil ochocientas canciones tuyas,<br>
+          esperando el momento adecuado.
+        </p>
+        <a href="/app" class="btn btn-primary">Abrir Compás</a>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <h4>Producto</h4>
+          <a href="/">Presentación</a>
+          <a href="/metodo">Cómo funciona</a>
+          <a href="/app">La aplicación</a>
+        </div>
+        <div>
+          <h4>Instalación</h4>
+          <a href="/guia">Guía completa</a>
+          <a href="/guia#claves">Claves y licencias</a>
+          <a href="/guia#problemas">Errores frecuentes</a>
+        </div>
+        <div>
+          <h4>Servicios</h4>
+          <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify for Developers</a>
+          <a href="https://console.anthropic.com" target="_blank" rel="noopener">Consola de Anthropic</a>
+          <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">Clave de Last.fm</a>
+        </div>
+        <div>
+          <h4>Código</h4>
+          <a href="https://github.com/pclavellmaso/spotify-playlist-gen" target="_blank" rel="noopener">Repositorio</a>
+          <a href="/docs" target="_blank">Referencia de la API</a>
+          <a href="/metodo#limites">Alcance y límites</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>Herramienta personal. No afiliada a Spotify ni a Anthropic.</span>
+      <span>Todo se ejecuta en tu equipo. El token se guarda en tu disco con permisos 0600.</span>
+    </div>
+  </div>
+
+  <div class="footer-wordmark" aria-hidden="true">Compás</div>
+</footer>
+
+<script src="/static/chrome.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+{% block title %}Guía de instalación — Compás{% endblock %}
+{% block description %}Cómo ejecutar Compás en tu propio equipo: cuentas necesarias, claves de API, instalación y errores frecuentes.{% endblock %}
+
+{% block body %}
+<section class="pagehead">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <p class="eyebrow">Guía de instalación</p>
+    <h1 class="display sm">Ponerlo en marcha en tu equipo</h1>
+    <p class="lead">
+      Media hora larga la primera vez, contando el registro de las cuentas. No
+      hace falta saber programar, pero sí abrir una terminal y pegar cuatro
+      órdenes. Cada paso incluye lo que puede salir mal.
+    </p>
+    <nav class="toc">
+      <a href="#antes">Antes de empezar</a>
+      <a href="#claves">Cuentas y claves</a>
+      <a href="#instalar">Instalación</a>
+      <a href="#primera">Primera pasada</a>
+      <a href="#coste">Coste real</a>
+      <a href="#problemas">Errores frecuentes</a>
+      <a href="#futuro">Hacia dónde va</a>
+    </nav>
+  </div>
+</section>
+
+<section id="antes" class="band">
+  <div class="wrap">
+    <h2 class="band-title">Antes de empezar</h2>
+    <p class="band-lead">
+      Compás no es un servicio al que te registras: es un programa que corre en
+      tu ordenador y habla con tres servicios en tu nombre. Eso significa que las
+      cuentas y el gasto son tuyos, y que ninguna canción ni credencial pasa por
+      un servidor mío. También significa que hay que montarlo.
+    </p>
+    <ul class="reqs">
+      <li>
+        <span class="req-tag req-need">Imprescindible</span>
+        <h3>Spotify Premium</h3>
+        <p>
+          Desde marzo de 2026, quien registra la aplicación debe tener
+          suscripción de pago. Con una cuenta gratuita todo parece funcionar
+          hasta que intentas guardar una lista y la API responde un error
+          genérico de permisos.
+        </p>
+      </li>
+      <li>
+        <span class="req-tag req-need">Imprescindible</span>
+        <h3>Saldo en un modelo de IA</h3>
+        <p>
+          Por defecto Claude, con créditos comprados en la consola de Anthropic.
+          No sirve la suscripción de la aplicación de chat: es otra cosa. Hace
+          falta una clave de API y saldo, que se compra por adelantado.
+        </p>
+      </li>
+      <li>
+        <span class="req-tag req-opt">Recomendable</span>
+        <h3>Cuenta de Last.fm</h3>
+        <p>
+          Gratuita y sin límite práctico. Aporta el vocabulario que la comunidad
+          ha escrito sobre artistas y discos, y es lo que sostiene el perfilado
+          del catálogo menos conocido. Sin ella funciona, con peor puntería.
+        </p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section id="claves" class="band band-quiet">
+  <div class="wrap">
+    <h2 class="band-title">Cuentas y claves</h2>
+
+    <ol class="setup-list">
+      <li>
+        <h3>Registrar la aplicación en Spotify</h3>
+        <p>
+          Entra en
+          <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>
+          con tu cuenta de siempre y pulsa <em>Create app</em>. Nombre y
+          descripción, lo que quieras.
+        </p>
+        <p>
+          En <strong>Redirect URI</strong> pega exactamente esto y pulsa
+          <em>Add</em>, comprobando que aparece en la lista de abajo y no sólo
+          escrito en el campo:
+        </p>
+        <pre><code>http://127.0.0.1:8000/api/auth/callback</code></pre>
+        <p class="note">
+          Ha de ser la IP de bucle. <code>localhost</code> dejó de aceptarse y
+          una sola letra de diferencia tumba el inicio de sesión.
+        </p>
+        <p>
+          Marca <strong>Web API</strong> y nada más. Guarda, entra en
+          <em>Settings</em> y copia el <strong>Client ID</strong>: son 32
+          caracteres hexadecimales. El <em>client secret</em> no hace falta,
+          porque se usa PKCE.
+        </p>
+        <p>
+          Por último, en <em>User Management</em>, añade tu propia cuenta con su
+          nombre y el correo con el que entras en Spotify.
+        </p>
+        <p class="note">
+          Cuidado con una confusión fácil: en el panel hay una sección aparte
+          llamada <em>Spotify Soloist API Key</em>, que es un reproductor para
+          terminal y no tiene nada que ver. Lo que buscas se llama Client ID y no
+          se genera con un botón: ya lo tiene la aplicación que acabas de crear.
+        </p>
+      </li>
+
+      <li>
+        <h3>Obtener la clave del modelo</h3>
+        <p>
+          En <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>,
+          apartado <em>API keys</em>, pulsa <em>Create key</em>. Cópiala en ese
+          momento: empieza por <code>sk-ant-</code> y no se vuelve a mostrar.
+        </p>
+        <p>
+          Entra después en <em>Plans &amp; Billing</em> y compra crédito. Sin
+          saldo, cada petición devuelve un error y no se perfila nada.
+        </p>
+      </li>
+
+      <li>
+        <h3>Obtener la clave de Last.fm</h3>
+        <p>
+          En <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">last.fm/api/account/create</a>,
+          rellena nombre y descripción. Los campos de <em>callback</em> y página
+          web pueden ir vacíos: no se usa autenticación de usuario. Te da una
+          clave y un secreto; sólo hace falta la clave.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="instalar" class="band">
+  <div class="wrap">
+    <h2 class="band-title">Instalación</h2>
+    <ol class="setup-list">
+      <li>
+        <h3>Descargar el proyecto y crear el entorno</h3>
+        <pre><code>git clone https://github.com/pclavellmaso/spotify-playlist-gen
+cd spotify-playlist-gen
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python -r requirements.txt</code></pre>
+        <p class="note">
+          Vale cualquier Python 3.10 o superior, y sirve <code>python -m venv</code>
+          si el tuyo está sano. En macOS 26 conviene <code>uv</code>
+          (<code>brew install uv</code>): la compilación de Homebrew de Python
+          viene con una biblioteca del sistema desemparejada y no deja crear
+          entornos virtuales.
+        </p>
+      </li>
+      <li>
+        <h3>Escribir las credenciales</h3>
+        <pre><code>cp .env.example .env</code></pre>
+        <p>Abre el fichero y rellena estas tres líneas, sin comillas ni espacios:</p>
+        <pre><code>SPOTIFY_CLIENT_ID=el_client_id_de_32_caracteres
+ANTHROPIC_API_KEY=sk-ant-...
+LASTFM_API_KEY=la_clave_de_lastfm</code></pre>
+        <p class="note">
+          <code>.env</code> está excluido del control de versiones y debe seguir
+          estándolo. Lo mismo que la carpeta <code>data/</code>, donde viven la
+          base de datos y tu token de sesión.
+        </p>
+      </li>
+      <li>
+        <h3>Arrancar</h3>
+        <pre><code>./.venv/bin/python run.py</code></pre>
+        <p>
+          Queda servido en <code>http://127.0.0.1:8000</code>. Ábrelo en el
+          navegador y entra con Spotify: se abrirá la pantalla de autorización
+          pidiendo permiso para leer tu biblioteca y crear listas.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="primera" class="band band-quiet">
+  <div class="wrap">
+    <h2 class="band-title">La primera pasada</h2>
+    <p class="band-lead">
+      El orden importa, porque el segundo paso es el único que cuesta dinero y
+      conviene comprobarlo sobre una muestra antes de lanzarlo entero.
+    </p>
+    <ol class="setup-list">
+      <li>
+        <h3>Sincronizar</h3>
+        <p>
+          Baja tu catálogo a la base local. Es gratis, tarda poco y puede
+          repetirse cuando quieras: sólo añade lo que falte.
+        </p>
+      </li>
+      <li>
+        <h3>Perfilar una muestra</h3>
+        <p>
+          Deja el tope en cincuenta y pulsa <em>Analizar</em>. Cuando termine,
+          pide un par de momentos y juzga el resultado. Si con tu música los
+          perfiles no tienen sentido, es mejor saberlo aquí que después de pagar
+          el catálogo completo.
+        </p>
+      </li>
+      <li>
+        <h3>Lanzar el barrido</h3>
+        <p>
+          Sube el tope y déjalo correr. Puedes cerrar la pestaña: el trabajo
+          sigue en el proceso y se guarda lote a lote, así que una interrupción
+          sólo cuesta el lote en vuelo.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="coste" class="band">
+  <div class="wrap">
+    <h2 class="band-title">Cuánto cuesta</h2>
+    <p class="band-lead">
+      El gasto está concentrado en el perfilado inicial y no se repite: cada
+      canción se analiza una sola vez y el resultado queda guardado. Interpretar
+      una petición es una llamada corta y suelta, de céntimos. Last.fm y Spotify
+      no cobran nada.
+    </p>
+    <div class="grid-2 tight">
+      <p>
+        <strong>Abaratarlo.</strong> Con <code>ANTHROPIC_MODEL=claude-haiku-4-5</code>
+        el barrido inicial baja mucho, a cambio de precisión en el catálogo menos
+        conocido. Es un buen intercambio si tienes miles de canciones.
+      </p>
+      <p>
+        <strong>Repetirlo.</strong> Si se toca el vocabulario de ejes o
+        contextos, las etiquetas guardadas dejan de valer y hay que volver a
+        perfilar. Por eso conviene validar sobre una muestra antes del barrido.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="problemas" class="band band-quiet">
+  <div class="wrap">
+    <h2 class="band-title">Errores frecuentes</h2>
+    <p class="band-lead">
+      Todos estos han pasado de verdad durante el desarrollo. Los mensajes de la
+      API de Spotify son especialmente engañosos: varios cambios de 2026
+      devuelven un 403 de permisos cuando en realidad la ruta ha cambiado.
+    </p>
+    <dl class="faq">
+      <dt><code>INVALID_CLIENT</code> al iniciar sesión</dt>
+      <dd>
+        El Redirect URI del panel no coincide carácter por carácter con
+        <code>http://127.0.0.1:8000/api/auth/callback</code>. Revisa que no sea
+        <code>localhost</code>, que no sobre una barra final y que esté
+        efectivamente añadido a la lista.
+      </dd>
+
+      <dt>La barra de análisis se queda en cero y desaparece</dt>
+      <dd>
+        Casi siempre es falta de saldo en la consola de Anthropic. Debería
+        aparecer el aviso en rojo bajo la barra; si no, mira la terminal.
+      </dd>
+
+      <dt>Error al guardar la playlist</dt>
+      <dd>
+        Comprueba que tu cuenta esté en <em>User Management</em> y sea Premium.
+        Si aun así falla, asegúrate de tener la versión actual del código: hasta
+        febrero de 2026 la ruta para añadir canciones era otra y la antigua ahora
+        responde un 403 que parece de permisos.
+      </dd>
+
+      <dt>Las playlists aparecen con cero canciones</dt>
+      <dd>
+        Mismo origen: Spotify renombró el campo del recuento. Actualiza el
+        proyecto.
+      </dd>
+
+      <dt><code>ensurepip</code> falla al crear el entorno</dt>
+      <dd>
+        Es el Python de Homebrew en macOS 26. Instala <code>uv</code> y crea el
+        entorno con él, que trae su propio intérprete autocontenido.
+      </dd>
+
+      <dt>Casi ninguna canción supera la nota</dt>
+      <dd>
+        No es un fallo: significa que tu biblioteca no tiene música para ese
+        momento. Baja la exigencia o usa <em>ampliar la búsqueda</em>, que la va
+        relajando por pasos y te enseña la nota de cada tema para que veas lo que
+        estás cediendo.
+      </dd>
+    </dl>
+  </div>
+</section>
+
+<section id="futuro" class="band">
+  <div class="wrap">
+    <h2 class="band-title">Hacia dónde va</h2>
+    <div class="grid-2">
+      <article class="feat">
+        <h3>Otros modelos</h3>
+        <p>
+          El modelo ya se elige con una variable de entorno, pero el cliente es
+          el de Anthropic. Aislar esa parte detrás de una interfaz común dejaría
+          usar cualquier proveedor con API compatible, y ejecutar el perfilado
+          contra un modelo local para quien no quiera pagar nada.
+        </p>
+      </article>
+      <article class="feat">
+        <h3>Una versión alojada</h3>
+        <p>
+          Técnicamente es viable: el perfilado ya es asíncrono y el estado cabe
+          en una base pequeña. El obstáculo no es técnico. Spotify limita cada
+          aplicación a cinco usuarios de prueba, y ese límite va asociado a la
+          aplicación, no al lugar donde se ejecuta: alojarla en un servidor no lo
+          levanta. Abrirla a más gente exigiría cuota extendida, que pide empresa
+          registrada y 250.000 usuarios activos al mes.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}
