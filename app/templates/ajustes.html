@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Ajustes — Compás{% endblock %}
+
+{% block body %}
+<section class="pagehead">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <p class="eyebrow">Ajustes</p>
+    <h1 class="display sm">Las claves, sin abrir un editor</h1>
+    <p class="lead">
+      Se guardan en el fichero <code>.env</code> de esta carpeta, con permisos
+      restringidos, y no salen de tu equipo. Deja en blanco lo que no quieras
+      cambiar: sólo se escribe lo que rellenes.
+    </p>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap conf">
+
+    <article class="conf-block">
+      <h2>Spotify</h2>
+      <p class="conf-help">
+        En <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>
+        crea una aplicación, marca <em>Web API</em>, añade tu cuenta en
+        <em>User Management</em> y copia el Client ID. Como Redirect URI,
+        exactamente: <code id="redirect">http://127.0.0.1:8000/api/auth/callback</code>
+      </p>
+      <div class="field">
+        <label for="spotify_client_id">Client ID <span id="st-spotify" class="tick"></span></label>
+        <input id="spotify_client_id" autocomplete="off" spellcheck="false"
+               placeholder="32 caracteres hexadecimales">
+      </div>
+    </article>
+
+    <article class="conf-block">
+      <h2>Modelo de lenguaje</h2>
+      <p class="conf-help">
+        Es lo que perfila tu biblioteca. Con <strong>Ollama</strong> o
+        <strong>LM Studio</strong> corre en tu propio equipo, sin clave y sin
+        coste: instálalos, descarga un modelo y déjalos abiertos.
+      </p>
+      <div class="conf-row">
+        <div class="field grow">
+          <label for="ai_provider">Proveedor</label>
+          <select id="ai_provider">
+            <option value="anthropic">Claude · el mejor resultado</option>
+            <option value="openai">OpenAI</option>
+            <option value="ollama">Ollama · local y gratis</option>
+            <option value="lmstudio">LM Studio · local y gratis</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="groq">Groq · rápido y barato</option>
+          </select>
+        </div>
+        <div class="field grow">
+          <label for="ai_model">Modelo</label>
+          <input id="ai_model" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="field" id="key-field">
+        <label for="ai_api_key">Clave de API <span id="st-ai" class="tick"></span></label>
+        <input id="ai_api_key" type="password" autocomplete="off" placeholder="Se guarda tal cual, sin enviarse a ningún sitio">
+      </div>
+      <div class="field">
+        <label for="ai_base_url">Servidor <span class="opt">opcional</span></label>
+        <input id="ai_base_url" autocomplete="off" spellcheck="false"
+               placeholder="Sólo si usas un servidor propio">
+      </div>
+    </article>
+
+    <article class="conf-block">
+      <h2>Last.fm <span class="opt">opcional</span></h2>
+      <p class="conf-help">
+        Clave gratuita en
+        <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">last.fm/api/account/create</a>.
+        Aporta el vocabulario de la comunidad sobre artistas y discos, que es lo
+        que sostiene el perfilado del catálogo menos conocido.
+      </p>
+      <div class="field">
+        <label for="lastfm_api_key">Clave de API <span id="st-lastfm" class="tick"></span></label>
+        <input id="lastfm_api_key" type="password" autocomplete="off">
+      </div>
+    </article>
+
+    <div class="conf-actions">
+      <button id="guardar" class="btn btn-primary btn-lg">Guardar y reiniciar</button>
+      <p id="conf-msg" class="hint"></p>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/ajustes.js"></script>
+{% endblock %}

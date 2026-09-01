@@ -1,4 +1,4 @@
-"""Etiquetado de canciones y traduccion de la peticion del usuario, via Claude.
+"""Etiquetado de canciones y traduccion de la peticion del usuario.
 
 Spotify retiro `audio-features` en noviembre de 2024, asi que el perfil sonoro
 se infiere del conocimiento que el modelo tiene de cada cancion (titulo,
@@ -11,25 +11,12 @@ import json
 import logging
 from typing import Any, Callable, Iterable, Iterator
 
-import anthropic
-
+from app.llm import LLMError, Modelo
 from app.vibes import AXES, CONTEXTS, QueryDraft, TrackVibe, TrackVibeBatch, VibeQuery
 
 log = logging.getLogger(__name__)
 
 BATCH_SIZE = 40
-
-# Errores que no mejoran reintentando: sin saldo, API key invalida, modelo
-# inexistente o peticion mal formada. Si un lote cae por esto, los siguientes
-# caeran igual: abortar en el primero evita quemar 45 llamadas en vacio y, sobre
-# todo, evita que el job termine "sin errores" y sin haber etiquetado nada.
-PERMANENT_ERRORS = (
-    anthropic.AuthenticationError,
-    anthropic.PermissionDeniedError,
-    anthropic.NotFoundError,
-    anthropic.BadRequestError,
-    anthropic.UnprocessableEntityError,
-)
 
 # Un fallo transitorio suelto se salta; una racha significa que algo va mal de
 # verdad y no tiene sentido seguir recorriendo la biblioteca.
@@ -42,29 +29,6 @@ MIN_TARGET_AXES = 3
 
 class TaggingAborted(RuntimeError):
     """El etiquetado no puede continuar. El mensaje se muestra tal cual en la UI."""
-
-
-def explain_error(exc: Exception, model: str) -> str:
-    """Traduce un error del SDK a algo accionable para quien mira la pantalla."""
-    text = str(exc)
-    if "credit balance is too low" in text:
-        return (
-            "La cuenta de Anthropic no tiene saldo. Anade creditos en "
-            "console.anthropic.com (Plans & Billing) y vuelve a darle a analizar."
-        )
-    if isinstance(exc, anthropic.AuthenticationError):
-        return (
-            "ANTHROPIC_API_KEY no es valida. Revisala en .env y reinicia la app."
-        )
-    if isinstance(exc, anthropic.PermissionDeniedError):
-        return f"La API key no tiene acceso al modelo '{model}'."
-    if isinstance(exc, anthropic.NotFoundError):
-        return (
-            f"El modelo '{model}' no existe. Revisa ANTHROPIC_MODEL en .env."
-        )
-    if isinstance(exc, anthropic.RateLimitError):
-        return "Anthropic esta limitando las peticiones. Prueba en unos minutos."
-    return f"Error de la API de Claude: {text}"
 
 
 # Prefijo estable: se cachea entre lotes y solo cambia si tocas el vocabulario.
@@ -142,32 +106,20 @@ contexts ["piscina_verano", "terraza_atardecer"]; descriptors ["veraniega",
 
 
 class Tagger:
-    def __init__(self, model: str, client: anthropic.Anthropic | None = None):
+    """Las dos llamadas al modelo. No sabe que proveedor hay detras."""
+
+    def __init__(self, model: Modelo):
         self.model = model
-        self.client = client or anthropic.Anthropic()
 
     def tag_batch(self, tracks: list[dict[str, Any]]) -> list[TrackVibe]:
         """Perfila un lote de canciones. Devuelve solo las que el modelo reconocio."""
         listing = "\n".join(_describe(t) for t in tracks)
-        response = self.client.messages.parse(
-            model=self.model,
+        parsed = self.model.parse(
+            TAGGER_SYSTEM,
+            f"Perfila estas {len(tracks)} canciones:\n\n{listing}",
+            TrackVibeBatch,
             max_tokens=16000,
-            system=[
-                {
-                    "type": "text",
-                    "text": TAGGER_SYSTEM,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Perfila estas {len(tracks)} canciones:\n\n{listing}",
-                }
-            ],
-            output_format=TrackVibeBatch,
         )
-        parsed = response.parsed_output
         if parsed is None:
             log.warning("El modelo no devolvio un lote valido; se omite")
             return []
@@ -205,9 +157,9 @@ class Tagger:
             try:
                 yield self.tag_batch(chunk)
                 consecutive = 0
-            except PERMANENT_ERRORS as exc:
-                raise TaggingAborted(explain_error(exc, self.model)) from exc
-            except anthropic.APIError as exc:
+            except LLMError as exc:
+                if exc.permanent:
+                    raise TaggingAborted(exc.human) from exc
                 # Un lote fallido puntual no debe tumbar un sync de 2.000
                 # canciones: las que queden sin etiqueta se reintentan en la
                 # proxima pasada. Una racha si, porque ya no es puntual.
@@ -215,8 +167,7 @@ class Tagger:
                 log.error("Fallo al etiquetar un lote de %d: %s", len(chunk), exc)
                 if consecutive >= MAX_CONSECUTIVE_FAILURES:
                     raise TaggingAborted(
-                        f"{consecutive} lotes seguidos han fallado. "
-                        f"{explain_error(exc, self.model)}"
+                        f"{consecutive} lotes seguidos han fallado. {exc.human}"
                     ) from exc
                 yield []
 
@@ -245,32 +196,15 @@ class Tagger:
         return query
 
     def _parse_query_once(self, prompt: str, insist: bool = False) -> VibeQuery:
-        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+        messages = [prompt]
         if insist:
             messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "Esa interpretacion se quedo sin ejes numericos en `targets`. "
-                        f"Vuelve a interpretarla poniendo al menos {MIN_TARGET_AXES} "
-                        "ejes con su valor 0-100, empezando por energy, tempo_feel y valence."
-                    ),
-                }
+                "Esa interpretacion se quedo sin ejes numericos en `targets`. "
+                f"Vuelve a interpretarla poniendo al menos {MIN_TARGET_AXES} "
+                "ejes con su valor 0-100, empezando por energy, tempo_feel y valence."
             )
-        response = self.client.messages.parse(
-            model=self.model,
-            max_tokens=4000,
-            system=[
-                {
-                    "type": "text",
-                    "text": QUERY_SYSTEM,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=messages,
-            output_format=QueryDraft,
-        )
-        draft = response.parsed_output
+        draft = self.model.parse(QUERY_SYSTEM, "\n\n".join(messages), QueryDraft,
+                                 max_tokens=4000)
         if draft is None:
             raise ValueError("No se pudo interpretar la peticion")
         # QueryDraft tiene un campo por eje, asi que no hay ejes inventados que

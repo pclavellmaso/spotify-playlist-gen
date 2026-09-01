@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -14,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from app.config import SCOPES, settings
+from app.config import SCOPES, MODELOS_POR_DEFECTO, settings, write_env
 from app.db import Library
 from app.lastfm import LastfmClient, album_key, artist_key, merge
+from app.llm import LLMError, build_model
 from app.matcher import blend, profile_from_tracks, select
 from app.spotify import SpotifyAuthError, SpotifyClient, SpotifyError, TokenStore
 from app.tagger import BATCH_SIZE, Tagger, TaggingAborted
@@ -60,9 +62,14 @@ _job: dict[str, Any] = {
 
 def _tagger() -> Tagger:
     try:
-        return Tagger(settings.anthropic_model)
-    except Exception as exc:  # falta la API key, normalmente
-        raise HTTPException(500, f"No se pudo iniciar Claude: {exc}") from exc
+        return Tagger(build_model(
+            settings.ai_provider, settings.ai_model,
+            settings.ai_api_key, settings.ai_base_url,
+        ))
+    except LLMError as exc:
+        raise HTTPException(500, exc.human) from exc
+    except Exception as exc:  # falta la clave, normalmente
+        raise HTTPException(500, f"No se pudo iniciar el modelo: {exc}") from exc
 
 
 # Un exception_handler tiene que *devolver* una respuesta. Lanzar HTTPException
@@ -103,6 +110,7 @@ PAGINAS = {
     "/metodo": ("metodo.html", "metodo"),
     "/guia": ("guia.html", "guia"),
     "/app": ("app.html", "app"),
+    "/ajustes": ("ajustes.html", "ajustes"),
 }
 
 
@@ -131,6 +139,90 @@ def estudio(request: Request):
     return _pagina(request, "/app")
 
 
+@app.get("/ajustes")
+def ajustes(request: Request):
+    return _pagina(request, "/ajustes")
+
+
+# -- configuracion desde el navegador ---------------------------------------
+CLAVES = {
+    "spotify_client_id": "SPOTIFY_CLIENT_ID",
+    "ai_provider": "AI_PROVIDER",
+    "ai_model": "AI_MODEL",
+    "ai_api_key": "AI_API_KEY",
+    "ai_base_url": "AI_BASE_URL",
+    "lastfm_api_key": "LASTFM_API_KEY",
+}
+
+
+def _solo_local(request: Request) -> None:
+    """Escribir credenciales solo se permite desde la propia maquina."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost"):
+        raise HTTPException(403, "La configuracion solo puede cambiarse desde este equipo")
+
+
+@app.get("/api/config")
+def leer_config(request: Request) -> dict[str, Any]:
+    """Estado de la configuracion, sin devolver ningun secreto."""
+    _solo_local(request)
+    return {
+        "spotify_client_id": settings.spotify_client_id,
+        "ai_provider": settings.ai_provider,
+        "ai_model": settings.ai_model,
+        "ai_base_url": settings.ai_base_url,
+        # De las claves solo se dice si estan puestas.
+        "ai_api_key_set": bool(settings.ai_api_key),
+        "lastfm_api_key_set": bool(settings.lastfm_api_key),
+        "modelos_por_defecto": MODELOS_POR_DEFECTO,
+        "redirect_uri": settings.spotify_redirect_uri,
+    }
+
+
+class SetupRequest(BaseModel):
+    spotify_client_id: str | None = None
+    ai_provider: str | None = None
+    ai_model: str | None = None
+    ai_api_key: str | None = None
+    ai_base_url: str | None = None
+    lastfm_api_key: str | None = None
+
+
+@app.post("/api/config")
+def guardar_config(request: Request, req: SetupRequest) -> dict[str, Any]:
+    """Escribe .env. Un campo vacio o ausente deja el valor anterior intacto.
+
+    Editar un fichero a mano es el unico paso realmente tecnico de la puesta en
+    marcha, y es donde se atasca todo el mundo. Hacerlo desde el navegador lo
+    convierte en un formulario.
+    """
+    _solo_local(request)
+    valores = {
+        CLAVES[campo]: valor.strip()
+        for campo, valor in req.model_dump().items()
+        if valor is not None and valor.strip()
+    }
+    if not valores:
+        raise HTTPException(400, "No has rellenado ningun campo")
+    write_env(valores)
+    # Nunca se registran los valores, solo que campos se han tocado.
+    log.info("Configuracion actualizada: %s", ", ".join(sorted(valores)))
+    return {"ok": True, "guardado": sorted(valores)}
+
+
+@app.post("/api/restart")
+def reiniciar(request: Request) -> dict[str, bool]:
+    """Sale con codigo 3; el lanzador lo interpreta como «vuelve a arrancar».
+
+    Recargar la configuracion en caliente exigiria rehacer los clientes de
+    Spotify, del modelo y de Last.fm y confiar en que nada quede colgando de
+    los valores viejos. Reiniciar el proceso da la misma garantia sin plumbing.
+    """
+    _solo_local(request)
+    threading.Timer(0.4, lambda: os._exit(3)).start()
+    return {"ok": True}
+
+
 # -- auth -------------------------------------------------------------------
 @app.get("/api/status")
 def status() -> dict[str, Any]:
@@ -146,7 +238,8 @@ def status() -> dict[str, Any]:
         "connected": True,
         "configured": True,
         "user": me.get("display_name") or me.get("id"),
-        "model": settings.anthropic_model,
+        "model": settings.ai_model,
+        "provider": settings.ai_provider,
         "lastfm": lastfm.enabled,
         "sources": library.sources(),
     }

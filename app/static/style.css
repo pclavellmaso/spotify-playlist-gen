@@ -419,3 +419,25 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: var(--a
   .send { margin-left: auto; }
   .setup-list > li { padding-left: 48px; }
 }
+
+/* ---------------- ajustes ---------------- */
+.conf { max-width: 760px; }
+.conf-block { padding: 30px 0; border-bottom: 1px solid var(--line); }
+.conf-block:first-child { padding-top: 0; }
+.conf-block h2 { font-size: 20px; margin-bottom: 12px; }
+.conf-help { margin: 0 0 22px; color: var(--muted); font-size: 14.5px; max-width: 66ch; }
+.conf-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.conf-block .field { margin-bottom: 18px; }
+.conf-block .field:last-child { margin-bottom: 0; }
+.opt {
+  margin-left: 6px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted);
+}
+.tick {
+  margin-left: 8px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 9.5px; letter-spacing: .1em; color: var(--muted);
+}
+.tick-on { color: var(--accent); border-color: rgba(29,185,84,.4); }
+.conf-actions { padding-top: 30px; }
+.conf-actions .hint { margin-top: 14px; }

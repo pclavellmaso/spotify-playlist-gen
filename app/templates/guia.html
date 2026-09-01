@@ -9,9 +9,10 @@
     <p class="eyebrow">Guía de instalación</p>
     <h1 class="display sm">Ponerlo en marcha en tu equipo</h1>
     <p class="lead">
-      Media hora larga la primera vez, contando el registro de las cuentas. No
-      hace falta saber programar, pero sí abrir una terminal y pegar cuatro
-      órdenes. Cada paso incluye lo que puede salir mal.
+      Media hora la primera vez, y casi toda se va en registrar las cuentas. No
+      hace falta saber programar ni abrir una terminal: se descarga, se abre con
+      doble clic y las claves se pegan en un formulario. Cada paso incluye lo
+      que puede salir mal.
     </p>
     <nav class="toc">
       <a href="#antes">Antes de empezar</a>
@@ -47,11 +48,13 @@
       </li>
       <li>
         <span class="req-tag req-need">Imprescindible</span>
-        <h3>Saldo en un modelo de IA</h3>
+        <h3>Un modelo de lenguaje</h3>
         <p>
-          Por defecto Claude, con créditos comprados en la consola de Anthropic.
-          No sirve la suscripción de la aplicación de chat: es otra cosa. Hace
-          falta una clave de API y saldo, que se compra por adelantado.
+          Con Claude u OpenAI hace falta una clave de API y saldo comprado por
+          adelantado; la suscripción de la aplicación de chat no sirve, es otra
+          cosa. Con <strong>Ollama</strong> o <strong>LM Studio</strong> el
+          modelo corre en tu propio equipo: sin clave, sin conexión y sin coste,
+          a cambio de algo de precisión y de un rato de proceso.
         </p>
       </li>
       <li>
@@ -137,44 +140,63 @@
 <section id="instalar" class="band">
   <div class="wrap">
     <h2 class="band-title">Instalación</h2>
+    <p class="band-lead">
+      Hay dos caminos. El primero no requiere abrir una terminal en ningún
+      momento; el segundo es el de siempre, por si prefieres ver lo que pasa.
+    </p>
+
     <ol class="setup-list">
       <li>
-        <h3>Descargar el proyecto y crear el entorno</h3>
-        <pre><code>git clone https://github.com/pclavellmaso/spotify-playlist-gen
-cd spotify-playlist-gen
-uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python -r requirements.txt</code></pre>
-        <p class="note">
-          Vale cualquier Python 3.10 o superior, y sirve <code>python -m venv</code>
-          si el tuyo está sano. En macOS 26 conviene <code>uv</code>
-          (<code>brew install uv</code>): la compilación de Homebrew de Python
-          viene con una biblioteca del sistema desemparejada y no deja crear
-          entornos virtuales.
-        </p>
-      </li>
-      <li>
-        <h3>Escribir las credenciales</h3>
-        <pre><code>cp .env.example .env</code></pre>
-        <p>Abre el fichero y rellena estas tres líneas, sin comillas ni espacios:</p>
-        <pre><code>SPOTIFY_CLIENT_ID=el_client_id_de_32_caracteres
-ANTHROPIC_API_KEY=sk-ant-...
-LASTFM_API_KEY=la_clave_de_lastfm</code></pre>
-        <p class="note">
-          <code>.env</code> está excluido del control de versiones y debe seguir
-          estándolo. Lo mismo que la carpeta <code>data/</code>, donde viven la
-          base de datos y tu token de sesión.
-        </p>
-      </li>
-      <li>
-        <h3>Arrancar</h3>
-        <pre><code>./.venv/bin/python run.py</code></pre>
+        <h3>Descargar el proyecto</h3>
         <p>
-          Queda servido en <code>http://127.0.0.1:8000</code>. Ábrelo en el
-          navegador y entra con Spotify: se abrirá la pantalla de autorización
-          pidiendo permiso para leer tu biblioteca y crear listas.
+          Desde
+          <a href="https://github.com/pclavellmaso/spotify-playlist-gen" target="_blank" rel="noopener">GitHub</a>,
+          botón <em>Code</em> → <em>Download ZIP</em>, y descomprime donde
+          quieras. Si manejas git, <code>git clone</code> y listo.
+        </p>
+      </li>
+      <li>
+        <h3>Doble clic</h3>
+        <p>
+          Dentro de la carpeta, abre <code>Compás.command</code> en macOS o
+          <code>Compas.bat</code> en Windows. La primera vez instala lo que
+          falte —el gestor de Python, el entorno y las dependencias— y tarda un
+          par de minutos; las siguientes arranca en segundos y abre el navegador
+          solo. No pide contraseña de administrador ni instala nada fuera de esa
+          carpeta.
+        </p>
+        <p class="note">
+          En macOS, la primera vez el sistema puede bloquear el fichero por
+          venir de internet: clic derecho → <em>Abrir</em> → <em>Abrir</em>. A
+          partir de ahí, doble clic normal.
+        </p>
+      </li>
+      <li>
+        <h3>Rellenar las claves en el navegador</h3>
+        <p>
+          Compás arranca aunque no esté configurado y te lleva a la página de
+          <a href="/ajustes">ajustes</a>, donde pegas las claves en un
+          formulario. Se guardan en el fichero <code>.env</code> de tu carpeta,
+          con permisos restringidos, y la aplicación se reinicia sola para
+          aplicarlas. No hace falta editar nada a mano.
         </p>
       </li>
     </ol>
+
+    <h3 class="band-title" style="font-size:22px;margin-top:20px">Por terminal, si lo prefieres</h3>
+    <pre><code>git clone https://github.com/pclavellmaso/spotify-playlist-gen
+cd spotify-playlist-gen
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python -r requirements.txt
+cp .env.example .env
+./.venv/bin/python run.py</code></pre>
+    <p class="note">
+      Vale cualquier Python 3.10 o superior, y sirve <code>python -m venv</code>
+      si el tuyo está sano. En macOS 26 conviene <code>uv</code>
+      (<code>brew install uv</code>): la compilación de Homebrew de Python viene
+      con una biblioteca del sistema desemparejada y no deja crear entornos
+      virtuales.
+    </p>
   </div>
 </section>
 
@@ -297,12 +319,13 @@ LASTFM_API_KEY=la_clave_de_lastfm</code></pre>
     <h2 class="band-title">Hacia dónde va</h2>
     <div class="grid-2">
       <article class="feat">
-        <h3>Otros modelos</h3>
+        <h3>Cualquier modelo, también local</h3>
         <p>
-          El modelo ya se elige con una variable de entorno, pero el cliente es
-          el de Anthropic. Aislar esa parte detrás de una interfaz común dejaría
-          usar cualquier proveedor con API compatible, y ejecutar el perfilado
-          contra un modelo local para quien no quiera pagar nada.
+          El proveedor está aislado tras una interfaz mínima: devolver JSON
+          conforme a un esquema y clasificar sus errores. Además de Claude
+          funcionan OpenAI, OpenRouter y Groq, y sobre todo Ollama y LM Studio,
+          que ejecutan el modelo en tu equipo y eliminan el único coste
+          recurrente del proyecto. Se cambia desde <a href="/ajustes">ajustes</a>.
         </p>
       </article>
       <article class="feat">

@@ -41,9 +41,11 @@ async function api(path, options = {}) {
   if (!estado.configured) {
     show($("gate"), true);
     $("gate-msg").innerHTML =
-      "Falta <code>SPOTIFY_CLIENT_ID</code> en el fichero <code>.env</code>. " +
-      "La guía explica de dónde sacarlo.";
-    show($("gate-login"), false);
+      "Todavía falta el Client ID de Spotify. Se rellena desde el navegador, " +
+      "sin tocar ningún fichero.";
+    const ir = $("gate-login");
+    ir.textContent = "Ir a los ajustes";
+    ir.href = "/ajustes";
     return;
   }
   if (!estado.connected) {
