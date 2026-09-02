@@ -365,3 +365,120 @@ de los metadatos.
   modelo devuelve el lote entero de una vez y dentro de él no hay progreso
   observable. Bajar `BATCH_SIZE` daría una barra más fina y multiplicaría el
   coste: se perdería el cacheo del prefijo del prompt
+
+---
+
+## 8. Gemini: el proveedor que falta
+
+`app/llm.py` cubre hoy dos dialectos: el SDK de Anthropic y `/chat/completions`
+(OpenAI, OpenRouter, Groq, LM Studio, Ollama). **Google Gemini no está**, y no
+entra por el adaptador OpenAI: necesita el suyo.
+
+Merece la pena por una razón concreta ligada al problema medido en §5. La
+biblioteca es house, DnB y electrónica reciente de sello pequeño, el
+`confidence` medio está en 30.8, y la causa es que **el modelo no reconoce los
+temas**. Ollama ya te da gratis, pero un `llama3.1` local conoce *menos* catálogo
+que un modelo grande, no más — va en la dirección contraria al problema. Gemini
+es la única opción que es **gratis y a la vez un modelo grande de nube**:
+
+| Proveedor | Cuota gratuita | Estado |
+|---|---|---|
+| **Gemini** | 2.5 Flash, ~1.500 req/día | **Sin implementar.** Salida estructurada con esquema JSON, que es lo que usa el tagger |
+| **Groq** | 14.400 req/día | Ya soportado. `.env.example` lo vende como "rápido y barato" pero no dice que tiene tier gratuito |
+| **OpenRouter** | 28+ modelos gratuitos | Ya soportado. Cómodo para barrer varios de golpe |
+| **Ollama / LM Studio** | Ilimitado, local | Ya soportado. Gratis de verdad, pero menos conocimiento musical |
+| **DeepSeek** | Sin tier gratis | ~$0.44/M tokens de entrada |
+
+Con lotes de 40 canciones, 1.500 req/día son 60.000 canciones diarias. La cuota
+no es el cuello de botella aquí.
+
+**La pregunta abierta que esto plantea**, y que `scripts/comparar_modelos.py` ya
+puede responder: ¿reconoce Gemini más de *tu* cola de catálogo que Claude? Si la
+respuesta es no, confirma lo que dice §6 —que esa cola no tiene arreglo por la
+vía de los metadatos— y deja de ser una vía a explorar. Si es sí, cambia el
+proveedor por defecto y de paso abarata el barrido a cero.
+
+**Aviso**: los tiers gratuitos suelen entrenar con los datos enviados. Son
+metadatos musicales públicos y poco sensibles, pero si algún día distribuyes la
+app (§9) hay que decirlo.
+
+---
+
+## 9. Distribución: el modelo BYOK
+
+Cada usuario crea su propia app de Spotify y trae sus propias claves, en vez de
+compartir las tuyas. Así cada uno tiene su cuota de 5 usuarios, en la que sólo
+está él, y el tope de §3 deja de ser un problema. Es el patrón estándar de las
+herramientas open source y es la vía correcta: distribuir tu Client ID sí estaría
+mal, y esto lo evita.
+
+Mueve el techo de sitio, no lo elimina:
+
+- **Cada usuario necesita Spotify Premium**, porque en BYOK cada usuario *es* el
+  desarrollador. *Decisión tomada: asumible, la mayoría paga Premium.*
+- **Un solo Client ID en Development Mode por cuenta.** Si el usuario ya tiene
+  otra app de dev, el dashboard le impedirá crear ésta.
+- **El techo real es el onboarding**: Premium → cuenta de dev → crear app →
+  Client ID → redirect URI exacto → añadirse como test user → clave del LLM →
+  `.env`. Por eso el arranque con doble clic y una clave gratuita (§8) valen
+  más de lo que parece: atacan el muro, no el tope de usuarios.
+
+**"Público" son dos cosas y sólo una funciona:** open source en GitHub y que cada
+uno se lo instale, sí. Un servicio hosted en tu dominio, no — custodiarías tokens
+de Spotify y claves de API ajenas, que son credenciales de facturación.
+
+### ⚠ Pendiente: leer los términos de Spotify
+
+**Sin verificar.** No se pudieron leer desde el entorno donde se escribió esto
+(`developer.spotify.com` bloqueado por política de red). Versión vigente: v10,
+efectiva el 15 de mayo de 2025, en `developer.spotify.com/terms`.
+
+Qué mirar, por orden de riesgo:
+
+1. **Para qué está permitido Development Mode.** Es la clave de todo el
+   planteamiento BYOK: si lo acota a *desarrollo y pruebas*, usarlo como
+   herramienta cotidiana queda en zona gris — por el propósito, no por el número
+   de usuarios
+2. **La cláusula de machine learning / IA.** Es literalmente lo que hace la app:
+   mandar metadatos de Spotify a un modelo externo. No se entrena nada, sólo se
+   clasifica, y esa distinción suele importar en el texto
+3. **Compartir o distribuir credenciales**, que debería confirmar que BYOK es lo
+   correcto
+4. **Retención y caché de metadatos.** La BD guarda títulos, artistas y álbumes
+   indefinidamente
+
+---
+
+## 10. Móvil
+
+El front ya es responsive. El problema es que el backend es Python.
+
+**Hoy, cambiando una línea:** `APP_HOST=0.0.0.0` y accedes desde el móvil por la
+IP del PC en la misma WiFi. El truco es que **el móvil nunca hace login**: haces
+el OAuth una vez en el PC —donde `127.0.0.1` sí es válido—, el token queda en
+`data/token.json` y desde el móvil sólo abres la web.
+
+No se puede hacer el OAuth desde el móvil: desde abril de 2025 Spotify **sólo
+acepta HTTP en direcciones de loopback**, así que un `http://192.168.x.x:8000`
+lo rechaza como *insecure redirect URI*.
+
+> ⚠ Con `0.0.0.0` la app queda accesible **sin contraseña** a cualquiera en la
+> red, con el token de Spotify dentro. Asumible en casa; no en una oficina.
+
+Un `manifest.json` + icono + service worker permitirían *Añadir a pantalla de
+inicio* en Android e iOS: icono propio, pantalla completa, sin barra de
+navegador. Es lo más parecido a "instalarla" y es poco trabajo.
+
+**App nativa: el empaquetado de escritorio no se traslada.** Tauri 2 soporta
+iOS y Android, pero el patrón *sidecar* (lanzar Python como subproceso) no existe
+en móvil: iOS no permite ejecutar binarios arbitrarios y en Android es frágil.
+Habría que **portar el backend**, que es menos de lo que parece — HTTP a Spotify,
+SQLite, llamadas al LLM y aritmética; `app/matcher.py` son ~100 líneas de
+matemáticas sin dependencias. Si el móvil llega a ser un objetivo real, la
+decisión es reescribir el backend en TypeScript y usar Capacitor o Tauri: el
+trabajo es pequeño *ahora* y crece cada semana que se siga añadiendo a la versión
+Python.
+
+**Riesgo si apuntas a iOS**, sin confirmar: Apple suele rechazar apps que exigen
+al usuario conseguir credenciales de API por su cuenta antes de poder usarlas.
+Google Play es más permisivo.
